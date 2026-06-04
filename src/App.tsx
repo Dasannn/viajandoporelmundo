@@ -1,11 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-
-export const Route = createFileRoute('/')({
-  component: GlobeExplorer,
-})
 
 function GlobeExplorer() {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -81,13 +76,13 @@ function GlobeExplorer() {
     sunLight.position.set(4, 3, 4)
     scene.add(sunLight)
 
-    // Pokemon-style globe
+    // Pokemon-style globe (texture path respects the deploy base URL)
     const loader = new THREE.TextureLoader()
     const earthRadius = 1.0
     const sphereGeo = new THREE.SphereGeometry(earthRadius, 64, 64)
 
     const earthMat = new THREE.MeshLambertMaterial({
-      map: loader.load('/pokemon-map.png', () => setIsLoading(false)),
+      map: loader.load(`${import.meta.env.BASE_URL}pokemon-map.png`, () => setIsLoading(false)),
     })
 
     const globe = new THREE.Mesh(sphereGeo, earthMat)
@@ -278,3 +273,5 @@ function GlobeExplorer() {
     </div>
   )
 }
+
+export default GlobeExplorer
