@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Local map-generation scratch (GeoJSON sources + generator)
+.scratch
+
+# Logs & misc
+*.log
+.DS_Store
+
+# Env
+.env
+.env.*
+!.env.example
