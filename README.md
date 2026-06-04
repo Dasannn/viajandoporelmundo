@@ -2,8 +2,6 @@
 
 Un globo terráqueo interactivo en 3D con estética Pokémon, construido con **Three.js** y **React + Vite**. El globo muestra la geografía real de la Tierra con una textura estilizada estilo Pokémon (océanos turquesa, costas de arena, casquetes polares nevados).
 
-🔗 **En vivo:** https://dasannn.github.io/viajandoporelmundo/
-
 ## Características
 
 - 🌍 Globo 3D con geografía real de la Tierra en estilo Pokémon (textura equirectangular)
