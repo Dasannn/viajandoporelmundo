@@ -1,0 +1,26 @@
+# Cloudflare configuration for local dev (`wrangler pages dev`) and CLI ops.
+# Secrets are NOT defined here — they live in `.dev.vars` (local, gitignored)
+# and in the Cloudflare Pages dashboard → Settings → Variables (production).
+
+name = "viajandoporelmundo"
+compatibility_date = "2025-06-01"
+
+# For `wrangler pages deploy` you would also set:
+#   pages_build_output_dir = "dist"
+# (Production builds are configured in the Cloudflare Pages dashboard:
+#  build command `npm run build`, output directory `dist`.)
+
+# --- Phase B/C: uncomment after creating the resources ---------------------
+# Create them once with:
+#   wrangler d1 create pokeglobe
+#   wrangler r2 bucket create pokeglobe-photos
+# then paste the printed database_id below.
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "pokeglobe"
+# database_id = "REPLACE_WITH_D1_ID"
+#
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "pokeglobe-photos"

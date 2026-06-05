@@ -513,6 +513,103 @@ html, body {
 .legend-dot.natural  { background: #4ec9b0; box-shadow: 0 0 4px #4ec9b0; }
 
 /* ============================================
+   AUTH GATE (login screen)
+   ============================================ */
+
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(78, 201, 176, 0.12), transparent 60%),
+    #050a14;
+  z-index: 200;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 28px 24px;
+  text-align: center;
+  animation: authPop 0.25s ease;
+}
+
+@keyframes authPop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.auth-logo {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.auth-title {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.auth-subtitle {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.auth-input {
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.auth-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: -2px;
+}
+
+.auth-btn {
+  background: linear-gradient(to bottom, #4ec9b0, #3aa991);
+  border: none;
+  border-radius: 8px;
+  color: #04130f;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.05s;
+}
+
+.auth-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.auth-btn:active:not(:disabled) { transform: translateY(1px); }
+.auth-btn:disabled { opacity: 0.6; cursor: default; }
+
+.auth-switch {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.auth-switch:hover { color: #4ec9b0; }
+
+/* ============================================
    SCROLLBAR HIDE
    ============================================ */
 

@@ -4,8 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
+    "api": "wrangler pages dev public --port 8788",
+    "dev:full": "concurrently -k -n VITE,API -c green,cyan \"npm:dev\" \"npm:api\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "hash-password": "node scripts/hash-password.mjs"
   },
   "dependencies": {
     "react": "19.2.6",
@@ -13,13 +16,16 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4",
     "@tailwindcss/vite": "4.2.2",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "5.2.0",
+    "concurrently": "^9",
     "tailwindcss": "4.2.2",
     "typescript": "5.9.3",
-    "vite": "7.3.3"
+    "vite": "7.3.3",
+    "wrangler": "^4"
   }
 }
