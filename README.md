@@ -4,10 +4,11 @@ Un globo terráqueo interactivo en 3D con estética Pokémon, construido con **T
 
 ## Características
 
-- 🌍 Globo 3D con geografía real de la Tierra en estilo Pokémon (textura equirectangular)
-- 🏖️ Costas de arena y casquetes polares nevados
-- 🔵 Atmósfera con efecto glow turquesa
-- ⭐ Campo de estrellas de fondo (8.000 estrellas)
+- 🌍 Globo 3D con **geografía real** en estilo Pokémon: biomas con datos reales (selvas, desiertos, sabanas, taiga, tundra)
+- ⛰️ Cordilleras reales por elevación (Andes, Rockies, Himalaya, Alpes…), costas de arena y casquetes polares
+- ☁️ Capa de nubes en movimiento sobre el planeta
+- 🌟 Halo atmosférico turquesa con efecto Fresnel
+- ✨ Campo de estrellas con parpadeo y estrellas fugaces ocasionales
 - 🖱️ Rotación con arrastre y zoom (scroll o botones +/−)
 - 🔄 Auto-rotación activable y botón de reset de vista
 - 📡 Coordenadas GPS en tiempo real al mover el cursor
@@ -48,4 +49,4 @@ El sitio se publica automáticamente con GitHub Actions en cada push a `main` (v
 
 ## Regenerar la textura del mapa
 
-La textura `public/pokemon-map.png` se genera con [`.scratch/genmap.ps1`](.scratch/genmap.ps1) (PowerShell + .NET), rasterizando las costas reales de Natural Earth con una paleta Pokémon. Edita la paleta en el bloque C# del script y vuelve a ejecutarlo para ajustar colores.
+La textura `public/pokemon-map.png` se genera con [`.scratch/genmap.ps1`](.scratch/genmap.ps1) (PowerShell + .NET). Combina los vectores de costa de Natural Earth 50m con dos rasters reales (color de cobertura `NE2` + elevación `HYP`) y los cuantiza a una paleta plana Pokémon de biomas. Edita los umbrales/paleta en el bloque C# del script y vuelve a ejecutarlo. (Requiere los datos en `.scratch/`, que está en `.gitignore`.)

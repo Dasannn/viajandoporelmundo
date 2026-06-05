@@ -97,46 +97,6 @@ html, body {
 }
 
 /* ============================================
-   HEADER
-   ============================================ */
-
-.hud-header {
-  position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  pointer-events: none;
-}
-
-.title-box {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 22px;
-}
-
-.hud-title {
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 5px;
-  text-transform: uppercase;
-}
-
-.pokemon-star {
-  color: #4ec9b0;
-  font-size: 12px;
-  opacity: 0.8;
-  animation: starPulse 3s ease-in-out infinite;
-}
-
-@keyframes starPulse {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 0.3; }
-}
-
-/* ============================================
    SEARCH
    ============================================ */
 

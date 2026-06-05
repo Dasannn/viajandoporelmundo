@@ -38,12 +38,14 @@ Overview of the project structure for developers and AI agents working on this c
 ## Key Concepts
 
 - **Single component**: `src/App.tsx` holds the whole app. A `useEffect` builds the Three.js
-  scene (stars, camera, `OrbitControls`, lights, the textured sphere, atmosphere glow) and the
-  render loop; React state drives only the HUD (coords, zoom %, auto-rotate, loading).
+  scene (twinkling star shader + shooting stars, camera, `OrbitControls`, lights, the textured
+  globe, a procedural cloud layer, and a Fresnel-shader atmosphere glow) and the render loop;
+  React state drives only the HUD (coords, zoom %, auto-rotate, loading).
 - **Globe texture**: loaded from `` `${import.meta.env.BASE_URL}pokemon-map.png` `` so it works
-  under the GitHub Pages sub-path. Regenerate via `.scratch/genmap.ps1`.
-- **Deploy base path**: `base: '/viajandoporelmundo/'` in `vite.config.ts` must match the repo
-  name. Update it if the repository is renamed.
+  under any deploy base. It is a real-geography biome map (Natural Earth NE2 land cover + HYP
+  elevation, quantized to a flat Pokémon palette). Regenerate via `.scratch/genmap.ps1`.
+- **Deploy base path**: `base` in `vite.config.ts` is `'/'` (hosted on Cloudflare Pages at the
+  root). For a GitHub Pages *project* sub-path it would need `'/viajandoporelmundo/'` instead.
 
 ## Development Commands
 

@@ -31,16 +31,88 @@ function GlobeExplorer() {
     sceneRef.current = scene
     scene.background = new THREE.Color(0x050a14)
 
-    // Stars
-    const starGeo = new THREE.BufferGeometry()
-    const starCount = 8000
-    const starPositions = new Float32Array(starCount * 3)
-    for (let i = 0; i < starCount * 3; i++) {
-      starPositions[i] = (Math.random() - 0.5) * 300
+    // Twinkling star field (varied size/color, animated brightness)
+    const starCount = 6000
+    const sPos = new Float32Array(starCount * 3)
+    const sSize = new Float32Array(starCount)
+    const sPhase = new Float32Array(starCount)
+    const sColor = new Float32Array(starCount * 3)
+    const starPalette = [
+      [1.0, 1.0, 1.0], [0.78, 0.88, 1.0], [1.0, 0.93, 0.78], [0.9, 0.85, 1.0],
+    ]
+    for (let i = 0; i < starCount; i++) {
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      const r = 70 + Math.random() * 90
+      sPos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
+      sPos[i * 3 + 1] = r * Math.cos(phi)
+      sPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta)
+      sSize[i] = Math.random() * Math.random() * 2.6 + 0.5 // mostly small, few large
+      sPhase[i] = Math.random() * Math.PI * 2
+      const c = starPalette[(Math.random() * starPalette.length) | 0]
+      sColor[i * 3] = c[0]; sColor[i * 3 + 1] = c[1]; sColor[i * 3 + 2] = c[2]
     }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
-    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15 })
+    const starGeo = new THREE.BufferGeometry()
+    starGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3))
+    starGeo.setAttribute('aSize', new THREE.BufferAttribute(sSize, 1))
+    starGeo.setAttribute('aPhase', new THREE.BufferAttribute(sPhase, 1))
+    starGeo.setAttribute('aColor', new THREE.BufferAttribute(sColor, 3))
+    const starMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `
+        attribute float aSize; attribute float aPhase; attribute vec3 aColor;
+        uniform float uTime; uniform float uPixelRatio;
+        varying vec3 vColor; varying float vTw;
+        void main() {
+          vColor = aColor;
+          float tw = 0.55 + 0.45 * sin(uTime * 2.2 + aPhase);
+          vTw = tw;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = aSize * uPixelRatio * (200.0 / -mv.z) * (0.7 + 0.3 * tw);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor; varying float vTw;
+        void main() {
+          float d = length(gl_PointCoord - vec2(0.5));
+          if (d > 0.5) discard;
+          float a = smoothstep(0.5, 0.0, d);
+          gl_FragColor = vec4(vColor * vTw, a * vTw);
+        }
+      `,
+    })
     scene.add(new THREE.Points(starGeo, starMat))
+
+    // Occasional shooting star (a fading streak that respawns)
+    const meteorMat = new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+    const meteorGeo = new THREE.BufferGeometry()
+    const meteorPos = new Float32Array(2 * 3)
+    meteorGeo.setAttribute('position', new THREE.BufferAttribute(meteorPos, 3))
+    const meteor = new THREE.Line(meteorGeo, meteorMat)
+    meteor.frustumCulled = false
+    scene.add(meteor)
+    const meteorHead = new THREE.Vector3()
+    const meteorVel = new THREE.Vector3()
+    let meteorLife = 0
+    let meteorDelay = 2 + Math.random() * 4
+    const spawnMeteor = () => {
+      const theta = Math.random() * Math.PI * 2
+      const r = 110
+      meteorHead.set(r * Math.cos(theta), 40 + Math.random() * 40, r * Math.sin(theta))
+      meteorVel.set((Math.random() - 0.5) * 2, -1 - Math.random(), (Math.random() - 0.5) * 2)
+        .normalize().multiplyScalar(200)
+      meteorLife = 0.8
+    }
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000)
@@ -89,31 +161,102 @@ function GlobeExplorer() {
     scene.add(globe)
     globeRef.current = globe
 
-    // Teal atmosphere glow matching Pokemon map ocean color
-    const atmGeo = new THREE.SphereGeometry(earthRadius + 0.022, 64, 64)
-    const atmMat = new THREE.MeshPhongMaterial({
-      color: 0x30b8c8,
+    // Procedural cloud layer (soft white blobs on a transparent canvas texture)
+    const cloudCanvas = document.createElement('canvas')
+    cloudCanvas.width = 1024
+    cloudCanvas.height = 512
+    const cctx = cloudCanvas.getContext('2d')!
+    const cloudBlob = (x: number, y: number, rad: number) => {
+      const grad = cctx.createRadialGradient(x, y, 0, x, y, rad)
+      grad.addColorStop(0, 'rgba(255,255,255,0.95)')
+      grad.addColorStop(0.5, 'rgba(255,255,255,0.5)')
+      grad.addColorStop(1, 'rgba(255,255,255,0)')
+      cctx.fillStyle = grad
+      cctx.beginPath()
+      cctx.arc(x, y, rad, 0, Math.PI * 2)
+      cctx.fill()
+    }
+    for (let i = 0; i < 70; i++) {
+      const cx = Math.random() * 1024
+      const cy = Math.random() * 512
+      const puffs = 3 + ((Math.random() * 5) | 0)
+      for (let j = 0; j < puffs; j++) {
+        const rad = 16 + Math.random() * 38
+        const bx = cx + (Math.random() - 0.5) * 90
+        const by = cy + (Math.random() - 0.5) * 50
+        cloudBlob(bx, by, rad)
+        if (bx < 70) cloudBlob(bx + 1024, by, rad)      // wrap seam
+        if (bx > 954) cloudBlob(bx - 1024, by, rad)
+      }
+    }
+    const cloudTex = new THREE.CanvasTexture(cloudCanvas)
+    cloudTex.anisotropy = 4
+    const cloudGeo = new THREE.SphereGeometry(earthRadius + 0.016, 64, 64)
+    const cloudMat = new THREE.MeshLambertMaterial({
+      map: cloudTex, transparent: true, opacity: 0.5, depthWrite: false,
+    })
+    const clouds = new THREE.Mesh(cloudGeo, cloudMat)
+    scene.add(clouds)
+
+    // Fresnel atmosphere — bright teal rim glow around the planet
+    const atmGeo = new THREE.SphereGeometry(earthRadius * 1.2, 64, 64)
+    const atmMat = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: new THREE.Color(0x46d6e6) } },
       transparent: true,
-      opacity: 0.10,
-      side: THREE.FrontSide,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
       depthWrite: false,
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor; varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.2);
+          intensity = clamp(intensity, 0.0, 1.0);
+          gl_FragColor = vec4(uColor, 1.0) * intensity * 1.5;
+        }
+      `,
     })
     scene.add(new THREE.Mesh(atmGeo, atmMat))
 
-    // Outer glow
-    const glowGeo = new THREE.SphereGeometry(earthRadius + 0.06, 64, 64)
-    const glowMat = new THREE.MeshPhongMaterial({
-      color: 0x20a0b0,
-      transparent: true,
-      opacity: 0.05,
-      side: THREE.BackSide,
-      depthWrite: false,
-    })
-    scene.add(new THREE.Mesh(glowGeo, glowMat))
-
     // Animation loop
+    const clock = new THREE.Clock()
     function animate() {
       animFrameRef.current = requestAnimationFrame(animate)
+      const dt = clock.getDelta()
+
+      // Twinkle stars
+      starMat.uniforms.uTime.value = clock.elapsedTime
+
+      // Drift clouds slowly over the surface
+      clouds.rotation.y += dt * 0.015
+
+      // Shooting star: advance + fade, then respawn after a random delay
+      if (meteorLife > 0) {
+        meteorLife -= dt
+        meteorHead.addScaledVector(meteorVel, dt)
+        meteorPos[0] = meteorHead.x
+        meteorPos[1] = meteorHead.y
+        meteorPos[2] = meteorHead.z
+        meteorPos[3] = meteorHead.x - meteorVel.x * 0.045
+        meteorPos[4] = meteorHead.y - meteorVel.y * 0.045
+        meteorPos[5] = meteorHead.z - meteorVel.z * 0.045
+        meteorGeo.attributes.position.needsUpdate = true
+        meteorMat.opacity = Math.max(0, Math.min(1, meteorLife * 1.6))
+      } else {
+        meteorMat.opacity = 0
+        meteorDelay -= dt
+        if (meteorDelay <= 0) {
+          spawnMeteor()
+          meteorDelay = 3 + Math.random() * 6
+        }
+      }
+
       controls.update()
       renderer.render(scene, camera)
     }
@@ -203,15 +346,6 @@ function GlobeExplorer() {
         className="globe-canvas"
         onMouseMove={handleMouseMove}
       />
-
-      {/* Header HUD */}
-      <div className="hud-header">
-        <div className="pokemon-box title-box">
-          <span className="pokemon-star">★</span>
-          <span className="hud-title">POKÉGLOBE</span>
-          <span className="pokemon-star">★</span>
-        </div>
-      </div>
 
       {/* Coordinates HUD */}
       <div className="hud-coords">
