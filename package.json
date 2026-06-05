@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "wrangler versions upload",
-    "hash-password": "node scripts/hash-password.mjs"
+    "hash-password": "node scripts/hash-password.mjs",
+    "db:init:local": "wrangler d1 execute pokeglobe --local --file db/schema.sql",
+    "db:seed:local": "wrangler d1 execute pokeglobe --local --file db/seed.sql",
+    "db:init": "wrangler d1 execute pokeglobe --remote --file db/schema.sql"
   },
   "dependencies": {
     "react": "19.2.6",

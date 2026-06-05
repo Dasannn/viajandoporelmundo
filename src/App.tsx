@@ -1,6 +1,35 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import type { Destination, DestinationDetail } from './types'
+import { fetchDestination, fetchDestinations } from './api'
+import DestinationModal from './components/DestinationModal'
+
+// Convert geographic coordinates to a point on the globe's surface.
+// Inverse of the lat/lng read in handleMouseMove — keep both in sync.
+function latLngToVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
+  const phi = (90 - lat) * (Math.PI / 180)
+  const theta = (lng + 180) * (Math.PI / 180)
+  return new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta),
+  )
+}
+
+// Soft radial-gradient texture for the glowing halo under each pin.
+function makeGlowTexture(): THREE.Texture {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const ctx = c.getContext('2d')!
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+  g.addColorStop(0, 'rgba(255,210,80,0.9)')
+  g.addColorStop(0.4, 'rgba(255,170,40,0.35)')
+  g.addColorStop(1, 'rgba(255,170,40,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 64, 64)
+  return new THREE.CanvasTexture(c)
+}
 
 function GlobeExplorer() {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -13,11 +42,21 @@ function GlobeExplorer() {
   const raycasterRef = useRef(new THREE.Raycaster())
   const mouseRef = useRef(new THREE.Vector2())
   const isInitializedRef = useRef(false)
+  const pinsGroupRef = useRef<THREE.Group | null>(null)
+  const pinMeshesRef = useRef<THREE.Mesh[]>([])
+  const pinHalosRef = useRef<THREE.Sprite[]>([])
+  const glowTexRef = useRef<THREE.Texture | null>(null)
+  const pointerDownRef = useRef<{ x: number; y: number; t: number } | null>(null)
+  const hoveredNameRef = useRef<string | null>(null)
 
   const [coords, setCoords] = useState({ lat: 0, lng: 0 })
   const [zoom, setZoom] = useState(2.5)
   const [isLoading, setIsLoading] = useState(true)
   const [autoRotate, setAutoRotate] = useState(true)
+  const [destinations, setDestinations] = useState<Destination[]>([])
+  const [selected, setSelected] = useState<DestinationDetail | null>(null)
+  const [selectedLoading, setSelectedLoading] = useState(false)
+  const [hover, setHover] = useState<{ name: string; x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!mountRef.current || isInitializedRef.current) return
@@ -224,6 +263,9 @@ function GlobeExplorer() {
     })
     scene.add(new THREE.Mesh(atmGeo, atmMat))
 
+    // Glow texture shared by all pin halos (disposed on cleanup).
+    glowTexRef.current = makeGlowTexture()
+
     // Animation loop
     const clock = new THREE.Clock()
     function animate() {
@@ -257,6 +299,12 @@ function GlobeExplorer() {
         }
       }
 
+      // Gently pulse the pin halos
+      const halos = pinHalosRef.current
+      for (let i = 0; i < halos.length; i++) {
+        halos[i].scale.setScalar(0.085 * (0.85 + 0.25 * Math.sin(clock.elapsedTime * 3 + i * 1.7)))
+      }
+
       controls.update()
       renderer.render(scene, camera)
     }
@@ -276,6 +324,18 @@ function GlobeExplorer() {
     return () => {
       window.removeEventListener('resize', onResize)
       cancelAnimationFrame(animFrameRef.current)
+      if (pinsGroupRef.current) {
+        pinsGroupRef.current.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            o.geometry.dispose()
+            ;(o.material as THREE.Material).dispose()
+          } else if (o instanceof THREE.Sprite) {
+            o.material.dispose()
+          }
+        })
+        pinsGroupRef.current = null
+      }
+      glowTexRef.current?.dispose()
       renderer.dispose()
       if (mountRef.current && renderer.domElement.parentNode === mountRef.current) {
         mountRef.current.removeChild(renderer.domElement)
@@ -289,6 +349,110 @@ function GlobeExplorer() {
       controlsRef.current.autoRotate = autoRotate
     }
   }, [autoRotate])
+
+  // Load destinations once (App renders inside <AuthGate>, so we're authed).
+  useEffect(() => {
+    let cancelled = false
+    fetchDestinations()
+      .then((d) => {
+        if (!cancelled) setDestinations(d)
+      })
+      .catch(() => {
+        /* leave the globe empty if the API is unavailable */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // (Re)build the 3D pins whenever the destination list changes.
+  useEffect(() => {
+    const globe = globeRef.current
+    if (!globe) return
+
+    if (pinsGroupRef.current) {
+      globe.remove(pinsGroupRef.current)
+      pinsGroupRef.current.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose()
+          ;(o.material as THREE.Material).dispose()
+        } else if (o instanceof THREE.Sprite) {
+          o.material.dispose()
+        }
+      })
+    }
+
+    const group = new THREE.Group()
+    const meshes: THREE.Mesh[] = []
+    const halos: THREE.Sprite[] = []
+    const dotGeo = new THREE.SphereGeometry(0.02, 16, 16)
+    for (const d of destinations) {
+      const pos = latLngToVec3(d.lat, d.lng, 1.012)
+      const dot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffd24f }))
+      dot.position.copy(pos)
+      dot.userData.destination = d
+      group.add(dot)
+      meshes.push(dot)
+      if (glowTexRef.current) {
+        const halo = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: glowTexRef.current,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+        )
+        halo.position.copy(pos)
+        halo.scale.setScalar(0.085)
+        group.add(halo)
+        halos.push(halo)
+      }
+    }
+    globe.add(group)
+    pinsGroupRef.current = group
+    pinMeshesRef.current = meshes
+    pinHalosRef.current = halos
+  }, [destinations])
+
+  // Open a pin: show its metadata instantly, then load the photo gallery.
+  const openDestination = useCallback(async (d: Destination) => {
+    setSelected({ ...d, photos: [] })
+    setSelectedLoading(true)
+    try {
+      const detail = await fetchDestination(d.id)
+      setSelected(detail)
+    } catch {
+      /* keep the metadata-only view on failure */
+    } finally {
+      setSelectedLoading(false)
+    }
+  }, [])
+
+  // Distinguish a click on a pin from an orbit drag.
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    pointerDownRef.current = { x: e.clientX, y: e.clientY, t: Date.now() }
+  }, [])
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      const down = pointerDownRef.current
+      pointerDownRef.current = null
+      if (!down || !mountRef.current || !cameraRef.current) return
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y)
+      if (moved > 6 || Date.now() - down.t > 600) return // it was a drag/hold, not a click
+
+      const rect = mountRef.current.getBoundingClientRect()
+      mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+      mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current)
+      const hits = raycasterRef.current.intersectObjects(pinMeshesRef.current, false)
+      if (hits.length > 0) {
+        const d = hits[0].object.userData.destination as Destination | undefined
+        if (d) openDestination(d)
+      }
+    },
+    [openDestination],
+  )
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!mountRef.current || !cameraRef.current || !globeRef.current) return
@@ -306,6 +470,16 @@ function GlobeExplorer() {
       const lng = Math.atan2(point.z, -point.x) * (180 / Math.PI) - 180
       setCoords({ lat: parseFloat(lat.toFixed(2)), lng: parseFloat(lng.toFixed(2)) })
     }
+
+    // Pin hover → floating name tooltip (and pointer cursor via .over-pin)
+    const pinHits = raycasterRef.current.intersectObjects(pinMeshesRef.current, false)
+    const name =
+      pinHits.length > 0
+        ? ((pinHits[0].object.userData.destination as Destination | undefined)?.name ?? null)
+        : null
+    if (name) setHover({ name, x: e.clientX, y: e.clientY })
+    else if (hoveredNameRef.current !== null) setHover(null)
+    hoveredNameRef.current = name
   }, [])
 
   const zoomIn = () => {
@@ -343,8 +517,10 @@ function GlobeExplorer() {
       {/* 3D Canvas */}
       <div
         ref={mountRef}
-        className="globe-canvas"
+        className={`globe-canvas${hover ? ' over-pin' : ''}`}
         onMouseMove={handleMouseMove}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
       />
 
       {/* Coordinates HUD */}
@@ -404,6 +580,20 @@ function GlobeExplorer() {
           </button>
         </div>
       </div>
+
+      {/* Floating pin name on hover */}
+      {hover && (
+        <div className="pin-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
+          {hover.name}
+        </div>
+      )}
+
+      {/* Destination gallery modal */}
+      <DestinationModal
+        detail={selected}
+        loading={selectedLoading}
+        onClose={() => setSelected(null)}
+      />
     </div>
   )
 }

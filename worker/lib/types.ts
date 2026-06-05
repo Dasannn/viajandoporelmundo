@@ -12,6 +12,36 @@ export interface SessionData {
   exp: number
 }
 
+/** A visited place rendered as a pin on the globe (API shape, camelCase). */
+export interface Destination {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  /** R2 object key of the cover photo, or null. */
+  coverKey: string | null
+  /** ISO date (YYYY-MM-DD) or null. */
+  visitedFrom: string | null
+  visitedTo: string | null
+  notes: string | null
+  /** Unix seconds. */
+  createdAt: number
+}
+
+/** A single gallery photo belonging to a destination (API shape). */
+export interface Photo {
+  id: string
+  /** R2 object key; the client loads it via /api/photos/:key (Phase C). */
+  key: string
+  caption: string | null
+  sortOrder: number
+}
+
+/** A destination with its full photo gallery (GET /api/destinations/:id). */
+export interface DestinationDetail extends Destination {
+  photos: Photo[]
+}
+
 export interface Env {
   /** Static assets binding (serves dist/ with SPA fallback). */
   ASSETS: Fetcher

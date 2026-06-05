@@ -11,16 +11,37 @@ import {
   isSecureRequest,
   verifySessionToken,
 } from './lib/session'
+import {
+  createDestination,
+  deleteDestination,
+  getDestination,
+  listDestinations,
+  updateDestination,
+} from './destinations'
 import type { Env } from './lib/types'
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
   const { pathname } = new URL(request.url)
   const method = request.method
 
+  // --- auth (Phase A) ---
   if (pathname === '/api/login' && method === 'POST') return login(request, env)
   if (pathname === '/api/admin/login' && method === 'POST') return adminLogin(request, env)
   if (pathname === '/api/session' && method === 'GET') return session(request, env)
   if (pathname === '/api/logout' && method === 'POST') return logout(request, env)
+
+  // --- destinations (Phase B) ---
+  if (pathname === '/api/destinations') {
+    if (method === 'GET') return listDestinations(request, env)
+    if (method === 'POST') return createDestination(request, env)
+  }
+  const destMatch = pathname.match(/^\/api\/destinations\/([^/]+)$/)
+  if (destMatch) {
+    const id = decodeURIComponent(destMatch[1])
+    if (method === 'GET') return getDestination(request, env, id)
+    if (method === 'PUT') return updateDestination(request, env, id)
+    if (method === 'DELETE') return deleteDestination(request, env, id)
+  }
 
   return json({ error: 'not_found' }, { status: 404 })
 }
