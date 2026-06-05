@@ -5,10 +5,9 @@
 name = "viajandoporelmundo"
 compatibility_date = "2025-06-01"
 
-# For `wrangler pages deploy` you would also set:
-#   pages_build_output_dir = "dist"
-# (Production builds are configured in the Cloudflare Pages dashboard:
-#  build command `npm run build`, output directory `dist`.)
+# Required whenever a wrangler.toml is present in a Cloudflare Pages project.
+# Vite builds the static site into dist/; Functions are picked up from functions/.
+pages_build_output_dir = "dist"
 
 # --- Phase B/C: uncomment after creating the resources ---------------------
 # Create them once with:
