@@ -19,7 +19,7 @@ Un globo terráqueo interactivo en 3D con estética Pokémon, construido con **T
 - **Three.js** — renderizado 3D WebGL
 - **React 19 + Vite** — UI y bundling
 - **Tailwind CSS 4** — estilos utilitarios
-- **GitHub Pages** — hosting (deploy automático con GitHub Actions)
+- **Cloudflare Pages** — hosting (deploy automático en cada push a `main`)
 
 ## Cómo correr localmente
 
@@ -30,13 +30,19 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000).
 
-## Despliegue (GitHub Pages)
+## Despliegue (Cloudflare Pages)
 
-El sitio se publica automáticamente con GitHub Actions en cada push a `main` (ver [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)).
+El sitio está alojado en **Cloudflare Pages** y se publica automáticamente en cada push a `main`.
 
-**Configuración única** (una sola vez): en el repositorio, ve a **Settings → Pages → Build and deployment → Source** y selecciona **GitHub Actions**.
+Configuración del proyecto en el panel de Cloudflare Pages:
 
-> El `base` del proyecto está fijado a `/viajandoporelmundo/` en `vite.config.ts` para que coincida con la ruta del *project page*. Si renombras el repositorio, actualiza ese valor.
+| Ajuste | Valor |
+|--------|-------|
+| Rama de producción | `main` |
+| Comando de build | `npm run build` |
+| Directorio de salida | `dist` |
+
+> El `base` del proyecto está fijado a `/` en `vite.config.ts` porque Cloudflare Pages sirve el sitio desde la raíz del dominio. El dominio personalizado (`www.jsunmeforever.dpdns.org`) se configura en el panel de Cloudflare Pages (**Custom domains**), no mediante un archivo `CNAME`.
 
 ## Controles
 
