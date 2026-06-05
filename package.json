@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
-    "api": "wrangler pages dev public --port 8788",
-    "dev:full": "concurrently -k -n VITE,API -c green,cyan \"npm:dev\" \"npm:api\"",
+    "dev:worker": "wrangler dev",
+    "dev:full": "concurrently -k -n VITE,WORKER -c green,cyan \"npm:dev\" \"npm:dev:worker\"",
     "build": "vite build",
     "preview": "vite preview",
+    "deploy": "wrangler versions upload",
     "hash-password": "node scripts/hash-password.mjs"
   },
   "dependencies": {

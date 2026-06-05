@@ -1,4 +1,4 @@
-// Stateless signed-cookie sessions for Cloudflare Pages Functions.
+// Stateless signed-cookie sessions for the Worker.
 // A session token is `base64url(JSON payload) . base64url(HMAC-SHA256)`,
 // i.e. a minimal JWT-like token verified server-side with SESSION_SECRET.
 

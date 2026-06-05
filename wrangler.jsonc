@@ -1,0 +1,17 @@
+{
+  // Cloudflare Worker config. The project deploys via `npx wrangler versions upload`
+  // (set as the Deploy command in the Cloudflare dashboard). `npm run build`
+  // produces dist/, which is served as static assets; the Worker handles /api/*.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "viajandoporelmundo",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

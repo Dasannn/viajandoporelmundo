@@ -1,5 +1,5 @@
 // Low-level crypto helpers built on the Web Crypto API (crypto.subtle),
-// which is available natively in the Cloudflare Workers/Pages runtime.
+// which is available natively in the Cloudflare Workers runtime.
 // No external dependencies.
 
 const enc = new TextEncoder()

@@ -1,4 +1,4 @@
-// Small response helpers shared by the API endpoints.
+// Small response helpers shared by the API routes.
 
 export function json(data: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), {

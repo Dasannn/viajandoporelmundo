@@ -1,6 +1,6 @@
-// Shared types for Cloudflare Pages Functions (backend).
-// `Env` mirrors the bindings/secrets configured in wrangler.toml + .dev.vars
-// (local) and the Cloudflare Pages dashboard (production).
+// Shared types for the Cloudflare Worker backend.
+// `Env` mirrors the bindings/secrets configured in wrangler.jsonc + .dev.vars
+// (local) and the Cloudflare dashboard (production).
 
 export type Role = 'viewer' | 'admin'
 
@@ -13,6 +13,9 @@ export interface SessionData {
 }
 
 export interface Env {
+  /** Static assets binding (serves dist/ with SPA fallback). */
+  ASSETS: Fetcher
+
   /** Secret used to sign session cookies (HMAC-SHA256). */
   SESSION_SECRET: string
   /** Visitor gate password (plaintext secret, or a `pbkdf2$...` hash). */
@@ -27,13 +30,4 @@ export interface Env {
   // --- Phase B/C bindings (optional until the resources are created) ---
   DB?: D1Database
   BUCKET?: R2Bucket
-}
-
-/**
- * Data attached to the request by _middleware.ts and read by endpoints.
- * Declared as a `type` (not `interface`) so it satisfies the
- * `Record<string, unknown>` constraint on PagesFunction's Data generic.
- */
-export type MiddlewareData = {
-  session: SessionData | null
 }
