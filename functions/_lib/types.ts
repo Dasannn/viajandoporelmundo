@@ -29,7 +29,11 @@ export interface Env {
   BUCKET?: R2Bucket
 }
 
-/** Data attached to the request by _middleware.ts and read by endpoints. */
-export interface MiddlewareData {
+/**
+ * Data attached to the request by _middleware.ts and read by endpoints.
+ * Declared as a `type` (not `interface`) so it satisfies the
+ * `Record<string, unknown>` constraint on PagesFunction's Data generic.
+ */
+export type MiddlewareData = {
   session: SessionData | null
 }

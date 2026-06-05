@@ -12,7 +12,7 @@ export function bytesToBase64Url(bytes: Uint8Array): string {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-export function base64UrlToBytes(s: string): Uint8Array {
+export function base64UrlToBytes(s: string): Uint8Array<ArrayBuffer> {
   s = s.replace(/-/g, '+').replace(/_/g, '/')
   const pad = s.length % 4 ? 4 - (s.length % 4) : 0
   s += '='.repeat(pad)
@@ -61,7 +61,7 @@ export async function hmacSign(secret: string, data: string): Promise<string> {
 
 export async function hmacVerify(secret: string, data: string, sig: string): Promise<boolean> {
   const key = await importHmacKey(secret)
-  let sigBytes: Uint8Array
+  let sigBytes: Uint8Array<ArrayBuffer>
   try {
     sigBytes = base64UrlToBytes(sig)
   } catch {
@@ -86,8 +86,8 @@ export async function verifyPassword(stored: string, provided: string): Promise<
     if (parts.length !== 4) return false
     const iterations = parseInt(parts[1], 10)
     if (!Number.isFinite(iterations) || iterations <= 0) return false
-    let salt: Uint8Array
-    let expected: Uint8Array
+    let salt: Uint8Array<ArrayBuffer>
+    let expected: Uint8Array<ArrayBuffer>
     try {
       salt = base64UrlToBytes(parts[2])
       expected = base64UrlToBytes(parts[3])
