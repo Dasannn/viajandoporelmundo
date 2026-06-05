@@ -15,3 +15,7 @@ dist
 .env
 .env.*
 !.env.example
+
+# Cloudflare local secrets & state (NEVER commit secrets)
+.dev.vars
+.wrangler
