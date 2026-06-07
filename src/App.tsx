@@ -4,6 +4,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { Destination, DestinationDetail } from './types'
 import { fetchDestination, fetchDestinations } from './api'
 import DestinationModal from './components/DestinationModal'
+import PinEditor, { type PinDraft } from './admin/PinEditor'
+import { useAuth } from './auth/AuthGate'
 
 // Convert geographic coordinates to a point on the globe's surface.
 // Inverse of the lat/lng read in handleMouseMove — keep both in sync.
@@ -32,6 +34,7 @@ function makeGlowTexture(): THREE.Texture {
 }
 
 function GlobeExplorer() {
+  const { isAdmin, logout } = useAuth()
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -57,6 +60,9 @@ function GlobeExplorer() {
   const [selected, setSelected] = useState<DestinationDetail | null>(null)
   const [selectedLoading, setSelectedLoading] = useState(false)
   const [hover, setHover] = useState<{ name: string; x: number; y: number } | null>(null)
+  // Admin: dropping a new pin, and the open create/edit editor (null = closed).
+  const [placing, setPlacing] = useState(false)
+  const [editor, setEditor] = useState<PinDraft | null>(null)
 
   useEffect(() => {
     if (!mountRef.current || isInitializedRef.current) return
@@ -428,6 +434,37 @@ function GlobeExplorer() {
     }
   }, [])
 
+  // Reload pins after an admin change (create/edit/delete/photo upload).
+  const refreshDestinations = useCallback(() => {
+    fetchDestinations()
+      .then(setDestinations)
+      .catch(() => {})
+  }, [])
+
+  // Admin: open the editor for the currently selected pin.
+  const editSelected = useCallback(() => {
+    setSelected((s) => {
+      if (s) {
+        setEditor({
+          id: s.id,
+          name: s.name,
+          lat: s.lat,
+          lng: s.lng,
+          coverKey: s.coverKey,
+          visitedFrom: s.visitedFrom,
+          visitedTo: s.visitedTo,
+          notes: s.notes,
+        })
+      }
+      return null
+    })
+  }, [])
+
+  // Pausing auto-rotation makes it much easier to click a precise spot.
+  useEffect(() => {
+    if (placing) setAutoRotate(false)
+  }, [placing])
+
   // Distinguish a click on a pin from an orbit drag.
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     pointerDownRef.current = { x: e.clientX, y: e.clientY, t: Date.now() }
@@ -445,13 +482,37 @@ function GlobeExplorer() {
       mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current)
+
+      // Admin placing mode: drop a new pin at the clicked spot on the globe.
+      // Uses the same lat/lng math as handleMouseMove (inverse of latLngToVec3).
+      if (placing && globeRef.current) {
+        const gHits = raycasterRef.current.intersectObject(globeRef.current)
+        if (gHits.length > 0) {
+          const p = gHits[0].point.clone().normalize()
+          const lat = 90 - Math.acos(p.y) * (180 / Math.PI)
+          const lng = Math.atan2(p.z, -p.x) * (180 / Math.PI) - 180
+          setEditor({
+            name: '',
+            lat: parseFloat(lat.toFixed(4)),
+            lng: parseFloat(lng.toFixed(4)),
+            coverKey: null,
+            visitedFrom: null,
+            visitedTo: null,
+            notes: null,
+          })
+          setPlacing(false)
+        }
+        return
+      }
+
+      // Normal mode: open a pin's gallery if one was clicked.
       const hits = raycasterRef.current.intersectObjects(pinMeshesRef.current, false)
       if (hits.length > 0) {
         const d = hits[0].object.userData.destination as Destination | undefined
         if (d) openDestination(d)
       }
     },
-    [openDestination],
+    [openDestination, placing],
   )
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -517,11 +578,34 @@ function GlobeExplorer() {
       {/* 3D Canvas */}
       <div
         ref={mountRef}
-        className={`globe-canvas${hover ? ' over-pin' : ''}`}
+        className={`globe-canvas${hover ? ' over-pin' : ''}${placing ? ' placing' : ''}`}
         onMouseMove={handleMouseMove}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
       />
+
+      {/* Admin toolbar (only for an admin session) */}
+      {isAdmin && (
+        <div className="hud-admin">
+          <div className="pokemon-box admin-box">
+            <span className="admin-badge">⚙ ADMIN</span>
+            <button
+              className={`control-btn ${placing ? 'active' : ''}`}
+              onClick={() => setPlacing((v) => !v)}
+            >
+              {placing ? '✕ CANCELAR' : '➕ NUEVO PIN'}
+            </button>
+            <button className="control-btn" onClick={() => logout()}>
+              🚪 SALIR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Placing hint banner */}
+      {placing && (
+        <div className="placing-hint">Haz clic en el globo para colocar el pin 📍</div>
+      )}
 
       {/* Coordinates HUD */}
       <div className="hud-coords">
@@ -593,7 +677,18 @@ function GlobeExplorer() {
         detail={selected}
         loading={selectedLoading}
         onClose={() => setSelected(null)}
+        canEdit={isAdmin}
+        onEdit={editSelected}
       />
+
+      {/* Admin pin editor (create/edit + photo upload) */}
+      {editor && (
+        <PinEditor
+          draft={editor}
+          onChange={refreshDestinations}
+          onClose={() => setEditor(null)}
+        />
+      )}
     </div>
   )
 }

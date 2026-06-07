@@ -811,6 +811,244 @@ html, body {
 }
 
 /* ============================================
+   ADMIN TOOLBAR + PIN PLACING (Phase C)
+   ============================================ */
+
+.hud-admin {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+}
+
+.admin-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-badge {
+  color: #ffd24f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding-right: 2px;
+}
+
+/* Crosshair while dropping a new pin */
+.globe-canvas.placing {
+  cursor: crosshair;
+}
+
+.placing-hint {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(255, 210, 80, 0.14);
+  border: 1px solid rgba(255, 210, 80, 0.5);
+  border-radius: 999px;
+  color: #ffd24f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 8px 16px;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.18s ease;
+}
+
+/* "Edit" button on the gallery cover (admin only) */
+.modal-edit-btn {
+  position: absolute;
+  top: 12px;
+  right: 48px;
+  z-index: 2;
+  background: rgba(8, 16, 32, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 210, 80, 0.5);
+  border-radius: 8px;
+  color: #ffd24f;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.modal-edit-btn:hover {
+  background: rgba(255, 210, 80, 0.18);
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   PIN EDITOR (create / edit + photo upload)
+   ============================================ */
+
+.pin-editor .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-title {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.editor-coords {
+  color: #4ec9b0;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: -8px;
+}
+
+.editor-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.editor-dates {
+  display: flex;
+  gap: 10px;
+}
+
+.editor-dates .editor-label {
+  flex: 1;
+}
+
+.editor-notes {
+  resize: vertical;
+  min-height: 56px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.editor-save {
+  margin-top: 2px;
+}
+
+.editor-photos {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-hint {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.editor-file {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+.editor-file::file-selector-button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #4ec9b0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  margin-right: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.editor-file::file-selector-button:hover {
+  border-color: rgba(78, 201, 176, 0.5);
+  background: rgba(78, 201, 176, 0.08);
+}
+
+.editor-thumb {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.editor-thumb.is-cover {
+  border-color: #ffd24f;
+  box-shadow: 0 0 0 1px #ffd24f;
+}
+
+.editor-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.editor-thumb-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+.thumb-action {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 16, 32, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #ffd24f;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+
+.thumb-action:hover {
+  transform: scale(1.1);
+}
+
+.thumb-del {
+  color: #ff6b6b;
+}
+
+.editor-delete {
+  margin-top: 4px;
+  background: none;
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.editor-delete:hover {
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.6);
+}
+
+/* ============================================
    SCROLLBAR HIDE
    ============================================ */
 

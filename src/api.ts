@@ -1,10 +1,22 @@
 // Thin client for the Worker API. All calls send the session cookie
 // (credentials: 'same-origin') so protected data is only returned when authed.
 
-import type { Destination, DestinationDetail } from './types'
+import type { Destination, DestinationDetail, DestinationInput } from './types'
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+// JSON body request (POST/PUT/DELETE). Throws on non-2xx.
+async function sendJson<T>(url: string, method: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
   if (!res.ok) throw new Error(`${url} -> ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -17,6 +29,44 @@ export function fetchDestinations(): Promise<Destination[]> {
 /** GET /api/destinations/:id — one destination with its photo gallery. */
 export function fetchDestination(id: string): Promise<DestinationDetail> {
   return getJson<DestinationDetail>(`/api/destinations/${encodeURIComponent(id)}`)
+}
+
+// --- admin writes (require an admin session; the server enforces this) ------
+
+/** POST /api/destinations — create a pin. */
+export function createDestination(input: DestinationInput): Promise<Destination> {
+  return sendJson<Destination>('/api/destinations', 'POST', input)
+}
+
+/** PUT /api/destinations/:id — update a pin's metadata (incl. coverKey). */
+export function updateDestination(id: string, input: DestinationInput): Promise<Destination> {
+  return sendJson<Destination>(`/api/destinations/${encodeURIComponent(id)}`, 'PUT', input)
+}
+
+/** DELETE /api/destinations/:id — remove a pin, its photos, and R2 objects. */
+export function deleteDestination(id: string): Promise<{ ok: boolean }> {
+  return sendJson<{ ok: boolean }>(`/api/destinations/${encodeURIComponent(id)}`, 'DELETE')
+}
+
+/** POST /api/destinations/:id/photos — upload images; returns the updated detail. */
+export async function uploadPhotos(id: string, files: File[]): Promise<DestinationDetail> {
+  const form = new FormData()
+  for (const f of files) form.append('file', f)
+  const res = await fetch(`/api/destinations/${encodeURIComponent(id)}/photos`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body: form,
+  })
+  if (!res.ok) throw new Error(`upload -> ${res.status}`)
+  return res.json() as Promise<DestinationDetail>
+}
+
+/** DELETE /api/destinations/:id/photos/:photoId — returns the updated detail. */
+export function deletePhoto(id: string, photoId: string): Promise<DestinationDetail> {
+  return sendJson<DestinationDetail>(
+    `/api/destinations/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}`,
+    'DELETE',
+  )
 }
 
 /**

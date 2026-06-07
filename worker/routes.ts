@@ -18,6 +18,7 @@ import {
   listDestinations,
   updateDestination,
 } from './destinations'
+import { deletePhoto, servePhoto, uploadPhotos } from './photos'
 import type { Env } from './lib/types'
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
@@ -41,6 +42,22 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
     if (method === 'GET') return getDestination(request, env, id)
     if (method === 'PUT') return updateDestination(request, env, id)
     if (method === 'DELETE') return deleteDestination(request, env, id)
+  }
+
+  // --- photos (Phase C) ---
+  // Upload to a destination's gallery (admin) and delete a single photo (admin).
+  const photosColl = pathname.match(/^\/api\/destinations\/([^/]+)\/photos$/)
+  if (photosColl && method === 'POST') {
+    return uploadPhotos(request, env, decodeURIComponent(photosColl[1]))
+  }
+  const photoItem = pathname.match(/^\/api\/destinations\/([^/]+)\/photos\/([^/]+)$/)
+  if (photoItem && method === 'DELETE') {
+    return deletePhoto(request, env, decodeURIComponent(photoItem[1]), decodeURIComponent(photoItem[2]))
+  }
+  // Serve an R2 object by key (viewer+). The key may contain '/'.
+  const photoMatch = pathname.match(/^\/api\/photos\/(.+)$/)
+  if (photoMatch && method === 'GET') {
+    return servePhoto(request, env, decodeURIComponent(photoMatch[1]))
   }
 
   return json({ error: 'not_found' }, { status: 404 })

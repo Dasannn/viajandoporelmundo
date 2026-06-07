@@ -25,3 +25,6 @@ export interface Photo {
 export interface DestinationDetail extends Destination {
   photos: Photo[]
 }
+
+/** Editable fields for creating/updating a destination (admin). */
+export type DestinationInput = Omit<Destination, 'id' | 'createdAt'>

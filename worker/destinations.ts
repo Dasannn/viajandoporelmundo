@@ -5,18 +5,9 @@
 //   - POST / PUT / DELETE require an admin session.
 // Photo upload + serving lives in Phase C; here we only store/return keys.
 
-import { badRequest, forbidden, json, unauthorized } from './lib/http'
-import { getSessionCookie, roleSatisfies, verifySessionToken } from './lib/session'
-import type { Destination, DestinationDetail, Env, Photo, Role } from './lib/types'
-
-// Verify the session cookie and enforce a minimum role.
-// Returns the session role on success, or a short-circuit Response (401/403).
-async function authorize(request: Request, env: Env, need: Role): Promise<Role | Response> {
-  const s = await verifySessionToken(env, getSessionCookie(request))
-  if (!s) return unauthorized()
-  if (!roleSatisfies(s.role, need)) return forbidden()
-  return s.role
-}
+import { authorize } from './lib/auth'
+import { badRequest, json } from './lib/http'
+import type { Destination, DestinationDetail, Env, Photo } from './lib/types'
 
 const noDb = (): Response => json({ error: 'database_unavailable' }, { status: 503 })
 const notFound = (): Response => json({ error: 'not_found' }, { status: 404 })
@@ -75,24 +66,29 @@ export async function listDestinations(request: Request, env: Env): Promise<Resp
   return json((results ?? []).map(toDestination))
 }
 
-// GET /api/destinations/:id — one destination with its photo gallery.
-export async function getDestination(request: Request, env: Env, id: string): Promise<Response> {
-  const auth = await authorize(request, env, 'viewer')
-  if (auth instanceof Response) return auth
-  if (!env.DB) return noDb()
+// Load a destination with its full photo gallery, or null if it doesn't exist.
+// Shared by getDestination and the Phase C photo endpoints.
+export async function loadDetail(env: Env, id: string): Promise<DestinationDetail | null> {
+  if (!env.DB) return null
   const row = await env.DB.prepare('SELECT * FROM destinations WHERE id = ?')
     .bind(id)
     .first<DestRow>()
-  if (!row) return notFound()
+  if (!row) return null
   const { results } = await env.DB.prepare(
     'SELECT * FROM photos WHERE destination_id = ? ORDER BY sort_order ASC, created_at ASC',
   )
     .bind(id)
     .all<PhotoRow>()
-  const detail: DestinationDetail = {
-    ...toDestination(row),
-    photos: (results ?? []).map(toPhoto),
-  }
+  return { ...toDestination(row), photos: (results ?? []).map(toPhoto) }
+}
+
+// GET /api/destinations/:id — one destination with its photo gallery.
+export async function getDestination(request: Request, env: Env, id: string): Promise<Response> {
+  const auth = await authorize(request, env, 'viewer')
+  if (auth instanceof Response) return auth
+  if (!env.DB) return noDb()
+  const detail = await loadDetail(env, id)
+  if (!detail) return notFound()
   return json(detail)
 }
 
@@ -228,13 +224,22 @@ export async function updateDestination(request: Request, env: Env, id: string):
   return json(updated)
 }
 
-// DELETE /api/destinations/:id — remove a pin and its photo rows.
+// DELETE /api/destinations/:id — remove a pin, its photo rows, and R2 objects.
 export async function deleteDestination(request: Request, env: Env, id: string): Promise<Response> {
   const auth = await authorize(request, env, 'admin')
   if (auth instanceof Response) return auth
   if (!env.DB) return noDb()
-  // Delete photo rows first (explicit, in case FK cascade is off), then the row.
-  // R2 object cleanup is handled by the Phase C upload/delete flow.
+  // Remove the R2 objects for this destination's photos (best-effort), then
+  // delete photo rows and the destination row.
+  const { results } = await env.DB.prepare(
+    'SELECT r2_key FROM photos WHERE destination_id = ?',
+  )
+    .bind(id)
+    .all<{ r2_key: string }>()
+  const bucket = env.BUCKET
+  if (bucket && results && results.length) {
+    await Promise.all(results.map((r) => bucket.delete(r.r2_key)))
+  }
   await env.DB.batch([
     env.DB.prepare('DELETE FROM photos WHERE destination_id = ?').bind(id),
     env.DB.prepare('DELETE FROM destinations WHERE id = ?').bind(id),

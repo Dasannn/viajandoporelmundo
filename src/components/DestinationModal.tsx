@@ -8,6 +8,10 @@ interface Props {
   /** True while the full detail (photos) is still loading. */
   loading: boolean
   onClose: () => void
+  /** When true (admin), show an "Edit" button. */
+  canEdit?: boolean
+  /** Switch from the gallery view to the admin editor. */
+  onEdit?: () => void
 }
 
 // "1 abr 2024 – 10 abr 2024", or a single date, or "" when unknown.
@@ -31,7 +35,7 @@ function imgFallback(e: React.SyntheticEvent<HTMLImageElement>) {
   el.src = PLACEHOLDER_IMG
 }
 
-export default function DestinationModal({ detail, loading, onClose }: Props) {
+export default function DestinationModal({ detail, loading, onClose, canEdit, onEdit }: Props) {
   const [lightbox, setLightbox] = useState<string | null>(null)
   if (!detail) return null
 
@@ -53,6 +57,11 @@ export default function DestinationModal({ detail, loading, onClose }: Props) {
           <img src={cover} alt={detail.name} onError={imgFallback} />
           <div className="modal-cover-fade" />
           <h2 className="modal-title">{detail.name}</h2>
+          {canEdit && onEdit && (
+            <button className="modal-edit-btn" onClick={onEdit}>
+              ✎ Editar
+            </button>
+          )}
         </div>
 
         <div className="modal-body">

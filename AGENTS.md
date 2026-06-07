@@ -20,7 +20,7 @@ data API, with a D1 database for destinations and R2 for trip photos.
 | Language | TypeScript 5 (strict mode) |
 | Backend | Cloudflare Worker (`worker/`, native `fetch` handler) |
 | Data | Cloudflare D1 (SQLite) — destinations & photos |
-| Storage | Cloudflare R2 — trip photos (Phase C) |
+| Storage | Cloudflare R2 — trip photos (private, served via the Worker) |
 | Hosting | Cloudflare Pages/Workers (static assets + Worker API) |
 
 ## Directory Structure
@@ -33,24 +33,27 @@ data API, with a D1 database for destinations and R2 for trip photos.
 │   └── placeholder.png         # Fallback image for destinations without photos
 ├── src
 │   ├── main.tsx                # React root: <AuthGate> wraps <App /> into #root
-│   ├── App.tsx                 # GlobeExplorer — Three.js scene + HUD + destination pins
-│   ├── api.ts                  # Client for the Worker API (destinations, photoUrl)
-│   ├── types.ts                # Shared client types (Destination, Photo, DestinationDetail)
+│   ├── App.tsx                 # GlobeExplorer — Three.js scene + HUD + pins + admin mode
+│   ├── api.ts                  # Client for the Worker API (destinations, photos, admin writes)
+│   ├── types.ts                # Shared client types (Destination, Photo, DestinationInput…)
 │   ├── auth/AuthGate.tsx       # Login gate + useAuth() (Phase A)
+│   ├── admin/PinEditor.tsx     # Admin create/edit pin + photo upload/manage (Phase C)
 │   ├── components/
 │   │   └── DestinationModal.tsx# Pin gallery modal (cover, dates, photo grid, lightbox)
-│   └── styles.css              # Tailwind import + all HUD/globe/auth/modal styles
+│   └── styles.css              # Tailwind import + all HUD/globe/auth/modal/admin styles
 ├── worker                      # Cloudflare Worker (the /api/* backend)
 │   ├── index.ts                # Entry: routes /api/* to handleApi, else serves ASSETS (dist/)
-│   ├── routes.ts               # API router (auth + destinations)
-│   ├── destinations.ts         # D1-backed CRUD for destinations + photos (Phase B)
-│   └── lib/                    # session.ts, crypto.ts, http.ts, types.ts (Env bindings)
+│   ├── routes.ts               # API router (auth + destinations + photos)
+│   ├── destinations.ts         # D1-backed CRUD for destinations (Phase B)
+│   ├── photos.ts               # R2 upload/serve/delete for galleries (Phase C, admin writes)
+│   └── lib/                    # auth.ts, session.ts, crypto.ts, http.ts, types.ts (Env bindings)
 ├── db
 │   ├── schema.sql              # D1 schema (destinations, photos)
 │   └── seed.sql                # Sample destinations for local verification
 ├── .dev.vars                   # LOCAL Worker secrets (gitignored — never commit)
-├── wrangler.jsonc              # Worker + assets + D1 binding config
+├── wrangler.jsonc              # Worker + assets + D1 + R2 binding config
 ├── .scratch/genmap.ps1         # Map texture generator (PowerShell + .NET, not deployed)
+├── .scratch/verify-phasec.mts  # Workerd-free test of the photo API (esbuild + node:sqlite)
 ├── vite.config.ts              # Vite config: react + tailwind plugins, base '/'
 └── tsconfig.json               # TypeScript config (strict, ES2022, bundler resolution)
 ```
@@ -71,10 +74,22 @@ data API, with a D1 database for destinations and R2 for trip photos.
 - **Destinations & pins (Phase B)**: `App.tsx` fetches `/api/destinations` and renders a glowing
   pin per place. `latLngToVec3()` is the exact inverse of the lat/lng read in `handleMouseMove`
   (keep them in sync). Clicking a pin opens `DestinationModal` with the photo gallery
-  (`GET /api/destinations/:id`). Photo serving from R2 arrives in Phase C; until then galleries
-  show the placeholder image.
+  (`GET /api/destinations/:id`).
+- **Photos (Phase C)**: trip photos live in R2 and are **never public** — they are served by the
+  Worker at `GET /api/photos/<key>` only to an authenticated viewer (no session → 401), with
+  `Cache-Control: private`. Uploads (`POST /api/destinations/:id/photos`, multipart, admin-only)
+  store each image at `dest/<id>/<uuid>.<ext>`, insert a `photos` row, and auto-set the cover when
+  none exists. `DELETE /api/destinations/:id/photos/:photoId` removes the R2 object + row (and
+  clears the cover if it pointed there); deleting a destination cleans up all its R2 objects.
+- **Admin mode (Phase C)**: when `useAuth().isAdmin` is true, `App.tsx` shows an admin toolbar.
+  "Nuevo pin" enters placing mode — a click on the globe captures lat/lng (same math as
+  `handleMouseMove`) and opens `src/admin/PinEditor.tsx` to create the destination, then upload
+  and manage photos. Editing an existing pin is reached via the "Editar" button in
+  `DestinationModal`. All write calls require an admin session; the server enforces this, so a
+  viewer who pokes the API still gets 401/403.
 - **API auth**: GET endpoints require a viewer session; writes (POST/PUT/DELETE) require admin.
-  See `worker/destinations.ts` `authorize()` and `roleSatisfies()` in `worker/lib/session.ts`.
+  The shared guard is `worker/lib/auth.ts` `authorize()` + `roleSatisfies()` in
+  `worker/lib/session.ts`.
 
 ## Development Commands
 
@@ -89,6 +104,13 @@ npm run deploy     # wrangler versions upload (set as Deploy command in Cloudfla
 npm run db:init:local   # apply db/schema.sql to the local D1
 npm run db:seed:local   # load sample destinations (db/seed.sql)
 npm run db:init         # apply schema to the remote/production D1
+
+# R2 (first time, for Phase C photos): enable R2 in the Cloudflare dashboard, then:
+npx wrangler r2 bucket create pokeglobe-photos   # name must match wrangler.jsonc
+
+# Verify the photo API without workerd (esbuild bundle + Node 24 / node:sqlite):
+npx esbuild .scratch/verify-phasec.mts --bundle --platform=node --format=esm --outfile=$env:TEMP\verify-phasec.mjs
+node $env:TEMP\verify-phasec.mjs
 ```
 
 ## Conventions
