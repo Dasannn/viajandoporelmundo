@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS destinations (
   visited_from  TEXT,                   -- ISO date (YYYY-MM-DD)
   visited_to    TEXT,                   -- ISO date (YYYY-MM-DD)
   notes         TEXT,
-  created_at    INTEGER NOT NULL        -- unix seconds
+  created_at    INTEGER NOT NULL,       -- unix seconds
+  pin_color     TEXT,                   -- pin hex color (#rrggbb), null = default
+  pin_icon      TEXT,                   -- shape keyword (circle/star/…) or an emoji
+  pin_size      TEXT                    -- 's' | 'm' | 'l', null = default 'm'
 );
 
 -- Many photos per destination (the trip gallery).

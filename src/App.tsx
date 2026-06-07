@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { Destination, DestinationDetail } from './types'
@@ -6,6 +6,9 @@ import { fetchDestination, fetchDestinations } from './api'
 import DestinationModal from './components/DestinationModal'
 import PinEditor, { type PinDraft } from './admin/PinEditor'
 import { useAuth } from './auth/AuthGate'
+import TimelineFilter, { type YearFilter } from './components/TimelineFilter'
+import { continentOf, tripYear } from './lib/geo'
+import { DEFAULT_PIN_COLOR, makePinTexture, sizeScale } from './lib/pins'
 
 // Convert geographic coordinates to a point on the globe's surface.
 // Inverse of the lat/lng read in handleMouseMove — keep both in sync.
@@ -17,20 +20,6 @@ function latLngToVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
     radius * Math.cos(phi),
     radius * Math.sin(phi) * Math.sin(theta),
   )
-}
-
-// Soft radial-gradient texture for the glowing halo under each pin.
-function makeGlowTexture(): THREE.Texture {
-  const c = document.createElement('canvas')
-  c.width = c.height = 64
-  const ctx = c.getContext('2d')!
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
-  g.addColorStop(0, 'rgba(255,210,80,0.9)')
-  g.addColorStop(0.4, 'rgba(255,170,40,0.35)')
-  g.addColorStop(1, 'rgba(255,170,40,0)')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, 64, 64)
-  return new THREE.CanvasTexture(c)
 }
 
 function GlobeExplorer() {
@@ -46,9 +35,8 @@ function GlobeExplorer() {
   const mouseRef = useRef(new THREE.Vector2())
   const isInitializedRef = useRef(false)
   const pinsGroupRef = useRef<THREE.Group | null>(null)
-  const pinMeshesRef = useRef<THREE.Mesh[]>([])
-  const pinHalosRef = useRef<THREE.Sprite[]>([])
-  const glowTexRef = useRef<THREE.Texture | null>(null)
+  const pinSpritesRef = useRef<THREE.Sprite[]>([])
+  const pinTexturesRef = useRef<THREE.Texture[]>([])
   const pointerDownRef = useRef<{ x: number; y: number; t: number } | null>(null)
   const hoveredNameRef = useRef<string | null>(null)
 
@@ -63,6 +51,9 @@ function GlobeExplorer() {
   // Admin: dropping a new pin, and the open create/edit editor (null = closed).
   const [placing, setPlacing] = useState(false)
   const [editor, setEditor] = useState<PinDraft | null>(null)
+  // Filters: a single year (or "sin fecha", or null=all) + a set of continents.
+  const [activeYear, setActiveYear] = useState<YearFilter>(null)
+  const [activeContinents, setActiveContinents] = useState<string[]>([])
 
   useEffect(() => {
     if (!mountRef.current || isInitializedRef.current) return
@@ -269,9 +260,6 @@ function GlobeExplorer() {
     })
     scene.add(new THREE.Mesh(atmGeo, atmMat))
 
-    // Glow texture shared by all pin halos (disposed on cleanup).
-    glowTexRef.current = makeGlowTexture()
-
     // Animation loop
     const clock = new THREE.Clock()
     function animate() {
@@ -305,10 +293,11 @@ function GlobeExplorer() {
         }
       }
 
-      // Gently pulse the pin halos
-      const halos = pinHalosRef.current
-      for (let i = 0; i < halos.length; i++) {
-        halos[i].scale.setScalar(0.085 * (0.85 + 0.25 * Math.sin(clock.elapsedTime * 3 + i * 1.7)))
+      // Gently pulse the pins
+      const sprites = pinSpritesRef.current
+      for (let i = 0; i < sprites.length; i++) {
+        const base = (sprites[i].userData.baseScale as number) ?? 0.07
+        sprites[i].scale.setScalar(base * (0.9 + 0.12 * Math.sin(clock.elapsedTime * 3 + i * 1.7)))
       }
 
       controls.update()
@@ -332,16 +321,12 @@ function GlobeExplorer() {
       cancelAnimationFrame(animFrameRef.current)
       if (pinsGroupRef.current) {
         pinsGroupRef.current.traverse((o) => {
-          if (o instanceof THREE.Mesh) {
-            o.geometry.dispose()
-            ;(o.material as THREE.Material).dispose()
-          } else if (o instanceof THREE.Sprite) {
-            o.material.dispose()
-          }
+          if (o instanceof THREE.Sprite) o.material.dispose()
         })
         pinsGroupRef.current = null
       }
-      glowTexRef.current?.dispose()
+      pinTexturesRef.current.forEach((t) => t.dispose())
+      pinTexturesRef.current = []
       renderer.dispose()
       if (mountRef.current && renderer.domElement.parentNode === mountRef.current) {
         mountRef.current.removeChild(renderer.domElement)
@@ -371,7 +356,25 @@ function GlobeExplorer() {
     }
   }, [])
 
-  // (Re)build the 3D pins whenever the destination list changes.
+  // Apply the year + continent filters to choose which pins to show.
+  const filtered = useMemo(() => {
+    return destinations.filter((d) => {
+      if (activeYear !== null) {
+        const y = tripYear(d)
+        if (activeYear === 'none' ? y !== null : y !== activeYear) return false
+      }
+      if (
+        activeContinents.length > 0 &&
+        !activeContinents.includes(continentOf(d.lat, d.lng))
+      ) {
+        return false
+      }
+      return true
+    })
+  }, [destinations, activeYear, activeContinents])
+
+  // (Re)build the 3D pins whenever the filtered list changes. Each pin is a
+  // billboard sprite whose texture is its chosen shape/emoji + color.
   useEffect(() => {
     const globe = globeRef.current
     if (!globe) return
@@ -379,46 +382,34 @@ function GlobeExplorer() {
     if (pinsGroupRef.current) {
       globe.remove(pinsGroupRef.current)
       pinsGroupRef.current.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.geometry.dispose()
-          ;(o.material as THREE.Material).dispose()
-        } else if (o instanceof THREE.Sprite) {
-          o.material.dispose()
-        }
+        if (o instanceof THREE.Sprite) o.material.dispose()
       })
     }
+    pinTexturesRef.current.forEach((t) => t.dispose())
+    pinTexturesRef.current = []
 
     const group = new THREE.Group()
-    const meshes: THREE.Mesh[] = []
-    const halos: THREE.Sprite[] = []
-    const dotGeo = new THREE.SphereGeometry(0.02, 16, 16)
-    for (const d of destinations) {
-      const pos = latLngToVec3(d.lat, d.lng, 1.012)
-      const dot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffd24f }))
-      dot.position.copy(pos)
-      dot.userData.destination = d
-      group.add(dot)
-      meshes.push(dot)
-      if (glowTexRef.current) {
-        const halo = new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            map: glowTexRef.current,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-          }),
-        )
-        halo.position.copy(pos)
-        halo.scale.setScalar(0.085)
-        group.add(halo)
-        halos.push(halo)
-      }
+    const sprites: THREE.Sprite[] = []
+    const textures: THREE.Texture[] = []
+    for (const d of filtered) {
+      const tex = makePinTexture(d.pinIcon, d.pinColor || DEFAULT_PIN_COLOR)
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
+      )
+      sprite.position.copy(latLngToVec3(d.lat, d.lng, 1.02))
+      const base = sizeScale(d.pinSize)
+      sprite.scale.setScalar(base)
+      sprite.userData.destination = d
+      sprite.userData.baseScale = base
+      group.add(sprite)
+      sprites.push(sprite)
+      textures.push(tex)
     }
     globe.add(group)
     pinsGroupRef.current = group
-    pinMeshesRef.current = meshes
-    pinHalosRef.current = halos
-  }, [destinations])
+    pinSpritesRef.current = sprites
+    pinTexturesRef.current = textures
+  }, [filtered])
 
   // Open a pin: show its metadata instantly, then load the photo gallery.
   const openDestination = useCallback(async (d: Destination) => {
@@ -454,10 +445,22 @@ function GlobeExplorer() {
           visitedFrom: s.visitedFrom,
           visitedTo: s.visitedTo,
           notes: s.notes,
+          pinColor: s.pinColor,
+          pinIcon: s.pinIcon,
+          pinSize: s.pinSize,
         })
       }
       return null
     })
+  }, [])
+
+  // Filter controls (continents are multi-select toggles).
+  const toggleContinent = useCallback((cid: string) => {
+    setActiveContinents((cs) => (cs.includes(cid) ? cs.filter((x) => x !== cid) : [...cs, cid]))
+  }, [])
+  const clearFilters = useCallback(() => {
+    setActiveYear(null)
+    setActiveContinents([])
   }, [])
 
   // Pausing auto-rotation makes it much easier to click a precise spot.
@@ -499,6 +502,9 @@ function GlobeExplorer() {
             visitedFrom: null,
             visitedTo: null,
             notes: null,
+            pinColor: DEFAULT_PIN_COLOR,
+            pinIcon: 'circle',
+            pinSize: 'm',
           })
           setPlacing(false)
         }
@@ -506,7 +512,7 @@ function GlobeExplorer() {
       }
 
       // Normal mode: open a pin's gallery if one was clicked.
-      const hits = raycasterRef.current.intersectObjects(pinMeshesRef.current, false)
+      const hits = raycasterRef.current.intersectObjects(pinSpritesRef.current, false)
       if (hits.length > 0) {
         const d = hits[0].object.userData.destination as Destination | undefined
         if (d) openDestination(d)
@@ -533,7 +539,7 @@ function GlobeExplorer() {
     }
 
     // Pin hover → floating name tooltip (and pointer cursor via .over-pin)
-    const pinHits = raycasterRef.current.intersectObjects(pinMeshesRef.current, false)
+    const pinHits = raycasterRef.current.intersectObjects(pinSpritesRef.current, false)
     const name =
       pinHits.length > 0
         ? ((pinHits[0].object.userData.destination as Destination | undefined)?.name ?? null)
@@ -601,6 +607,33 @@ function GlobeExplorer() {
           </div>
         </div>
       )}
+
+      {/* Viewer session control — lets a visitor return to the login to switch
+          into admin mode (admins use the SALIR button in the admin toolbar). */}
+      {!isAdmin && (
+        <div className="hud-session">
+          <div className="pokemon-box">
+            <button
+              className="control-btn"
+              onClick={() => logout()}
+              title="Cerrar sesión y volver al inicio (para entrar como administrador)"
+            >
+              🔑 ACCESO ADMIN
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Year + continent filter */}
+      <TimelineFilter
+        destinations={destinations}
+        shownCount={filtered.length}
+        activeYear={activeYear}
+        onYear={setActiveYear}
+        activeContinents={activeContinents}
+        onToggleContinent={toggleContinent}
+        onClear={clearFilters}
+      />
 
       {/* Placing hint banner */}
       {placing && (

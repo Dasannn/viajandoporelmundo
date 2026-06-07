@@ -12,6 +12,12 @@ export interface Destination {
   notes: string | null
   /** Unix seconds. */
   createdAt: number
+  /** Pin hex color (#rrggbb), or null for the default gold. */
+  pinColor: string | null
+  /** Pin shape keyword (circle/star/…) or an emoji; null = default circle. */
+  pinIcon: string | null
+  /** Pin size: 's' | 'm' | 'l'; null = default 'm'. */
+  pinSize: string | null
 }
 
 export interface Photo {

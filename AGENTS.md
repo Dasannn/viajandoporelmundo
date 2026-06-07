@@ -37,9 +37,13 @@ data API, with a D1 database for destinations and R2 for trip photos.
 │   ├── api.ts                  # Client for the Worker API (destinations, photos, admin writes)
 │   ├── types.ts                # Shared client types (Destination, Photo, DestinationInput…)
 │   ├── auth/AuthGate.tsx       # Login gate + useAuth() (Phase A)
-│   ├── admin/PinEditor.tsx     # Admin create/edit pin + photo upload/manage (Phase C)
+│   ├── admin/PinEditor.tsx     # Admin create/edit pin + appearance + photo upload/manage
 │   ├── components/
-│   │   └── DestinationModal.tsx# Pin gallery modal (cover, dates, photo grid, lightbox)
+│   │   ├── DestinationModal.tsx# Pin gallery modal (cover, dates, photo grid, lightbox)
+│   │   └── TimelineFilter.tsx  # Year + continent filter panel (collapsible)
+│   ├── lib/
+│   │   ├── pins.ts             # Pin shapes/emoji/sizes + canvas drawing (sprite + preview)
+│   │   └── geo.ts              # continentOf(lat,lng) + tripYear() for the filter
 │   └── styles.css              # Tailwind import + all HUD/globe/auth/modal/admin styles
 ├── worker                      # Cloudflare Worker (the /api/* backend)
 │   ├── index.ts                # Entry: routes /api/* to handleApi, else serves ASSETS (dist/)
@@ -49,7 +53,8 @@ data API, with a D1 database for destinations and R2 for trip photos.
 │   └── lib/                    # auth.ts, session.ts, crypto.ts, http.ts, types.ts (Env bindings)
 ├── db
 │   ├── schema.sql              # D1 schema (destinations, photos)
-│   └── seed.sql                # Sample destinations for local verification
+│   ├── seed.sql                # Sample destinations for local verification
+│   └── migrations/             # Additive ALTER migrations (e.g. 0001_pin_style.sql)
 ├── .dev.vars                   # LOCAL Worker secrets (gitignored — never commit)
 ├── wrangler.jsonc              # Worker + assets + D1 + R2 binding config
 ├── .scratch/genmap.ps1         # Map texture generator (PowerShell + .NET, not deployed)
@@ -87,9 +92,19 @@ data API, with a D1 database for destinations and R2 for trip photos.
   and manage photos. Editing an existing pin is reached via the "Editar" button in
   `DestinationModal`. All write calls require an admin session; the server enforces this, so a
   viewer who pokes the API still gets 401/403.
+- **Customizable pins**: each destination stores `pin_color` / `pin_icon` (a shape keyword like
+  `circle`/`star` **or** an emoji) / `pin_size` (`s`/`m`/`l`). Pins render as billboard sprites
+  whose texture is drawn on a canvas by `src/lib/pins.ts` (`makePinTexture` for the globe,
+  `drawPin` for the editor preview). Null values fall back to a gold circle, medium size. Every
+  PUT must resend these fields (the editor's `input()` does) or they reset to null.
+- **Timeline/continent filter**: `TimelineFilter` derives the year (`tripYear`) and continent
+  (`continentOf`, approximate lat/lng boxes in `src/lib/geo.ts`) of each pin. Year is single-select,
+  continents multi-select, combined with AND; `App.tsx` memoizes the `filtered` list and only that
+  subset is built into sprites (so hidden pins are also non-interactive).
 - **API auth**: GET endpoints require a viewer session; writes (POST/PUT/DELETE) require admin.
   The shared guard is `worker/lib/auth.ts` `authorize()` + `roleSatisfies()` in
-  `worker/lib/session.ts`.
+  `worker/lib/session.ts`. A logged-in **viewer** can return to the login (top-right "Acceso
+  admin" button) to switch into an admin session.
 
 ## Development Commands
 

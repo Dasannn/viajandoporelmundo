@@ -10,6 +10,14 @@ import {
   updateDestination,
   uploadPhotos,
 } from '../api'
+import {
+  DEFAULT_PIN_COLOR,
+  PIN_EMOJIS,
+  PIN_SHAPES,
+  PIN_SIZES,
+  drawPin,
+  isShape,
+} from '../lib/pins'
 
 /** A pin being created (no id yet) or edited (with id). */
 export interface PinDraft extends DestinationInput {
@@ -29,6 +37,16 @@ function imgFallback(e: React.SyntheticEvent<HTMLImageElement>) {
   el.src = PLACEHOLDER_IMG
 }
 
+/** Small live canvas preview of a pin icon, used by the shape buttons + header. */
+function PinCanvas({ icon, color, size }: { icon: string; color: string; size: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const cv = ref.current
+    if (cv) drawPin(cv.getContext('2d')!, size, icon, color)
+  }, [icon, color, size])
+  return <canvas ref={ref} width={size} height={size} />
+}
+
 /**
  * Admin-only editor to create or edit a destination pin and manage its photo
  * gallery. Metadata is saved first (a new pin must exist before photos can be
@@ -42,6 +60,11 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
   const [notes, setNotes] = useState(draft.notes ?? '')
   const [coverKey, setCoverKey] = useState<string | null>(draft.coverKey)
   const [detail, setDetail] = useState<DestinationDetail | null>(null)
+
+  // Pin appearance
+  const [pinColor, setPinColor] = useState(draft.pinColor ?? DEFAULT_PIN_COLOR)
+  const [pinIcon, setPinIcon] = useState<string>(draft.pinIcon ?? 'circle')
+  const [pinSize, setPinSize] = useState<string>(draft.pinSize ?? 'm')
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -73,6 +96,9 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
     visitedFrom: from || null,
     visitedTo: to || null,
     notes: notes.trim() || null,
+    pinColor,
+    pinIcon,
+    pinSize,
   })
 
   const saveMeta = async () => {
@@ -215,6 +241,77 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
               rows={3}
             />
           </label>
+
+          {/* Pin appearance: color, size, shape or emoji */}
+          <div className="editor-appearance">
+            <span className="modal-section-label">Apariencia del pin</span>
+            <div className="appearance-top">
+              <div className="pin-preview">
+                <PinCanvas icon={pinIcon} color={pinColor} size={56} />
+              </div>
+              <div className="appearance-controls">
+                <label className="editor-inline-label">
+                  Color
+                  <input
+                    type="color"
+                    className="color-input"
+                    value={pinColor}
+                    onChange={(e) => setPinColor(e.target.value)}
+                  />
+                </label>
+                <div className="size-group">
+                  <span className="editor-inline-text">Tamaño</span>
+                  {PIN_SIZES.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={`size-btn${pinSize === s.id ? ' active' : ''}`}
+                      onClick={() => setPinSize(s.id)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <span className="editor-inline-text">Forma</span>
+            <div className="shape-grid">
+              {PIN_SHAPES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`shape-btn${pinIcon === s.id ? ' active' : ''}`}
+                  title={s.label}
+                  onClick={() => setPinIcon(s.id)}
+                >
+                  <PinCanvas icon={s.id} color={pinColor} size={30} />
+                </button>
+              ))}
+            </div>
+
+            <span className="editor-inline-text">Emoji</span>
+            <div className="emoji-grid">
+              {PIN_EMOJIS.map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  className={`emoji-btn${pinIcon === em ? ' active' : ''}`}
+                  onClick={() => setPinIcon(em)}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+            <input
+              className="pokemon-input emoji-input"
+              type="text"
+              maxLength={8}
+              value={isShape(pinIcon) ? '' : pinIcon}
+              placeholder="…o escribe cualquier emoji 🌟"
+              onChange={(e) => setPinIcon(e.target.value || 'circle')}
+            />
+          </div>
 
           <button className="auth-btn editor-save" onClick={saveMeta} disabled={saving}>
             {saving ? 'Guardando…' : id ? 'Guardar cambios' : 'Crear destino'}

@@ -24,6 +24,9 @@ interface DestRow {
   visited_to: string | null
   notes: string | null
   created_at: number
+  pin_color: string | null
+  pin_icon: string | null
+  pin_size: string | null
 }
 
 interface PhotoRow {
@@ -46,6 +49,9 @@ function toDestination(r: DestRow): Destination {
     visitedTo: r.visited_to,
     notes: r.notes,
     createdAt: r.created_at,
+    pinColor: r.pin_color ?? null,
+    pinIcon: r.pin_icon ?? null,
+    pinSize: r.pin_size ?? null,
   }
 }
 
@@ -102,6 +108,9 @@ interface DestInput {
   visitedTo: string | null
   notes: string | null
   coverKey: string | null
+  pinColor: string | null
+  pinIcon: string | null
+  pinSize: string | null
 }
 
 // Validate the shared create/update body. Returns null when invalid.
@@ -115,6 +124,13 @@ function parseBody(body: unknown): DestInput | null {
   if (!Number.isFinite(lat) || lat < -90 || lat > 90) return null
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) return null
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  // Pin appearance (all optional, validated):
+  const rawColor = str(b.pinColor)
+  const pinColor = rawColor && /^#[0-9a-fA-F]{6}$/.test(rawColor) ? rawColor.toLowerCase() : null
+  const rawIcon = str(b.pinIcon)
+  const pinIcon = rawIcon && rawIcon.length <= 16 ? rawIcon : null
+  const rawSize = str(b.pinSize)
+  const pinSize = rawSize === 's' || rawSize === 'm' || rawSize === 'l' ? rawSize : null
   return {
     name,
     lat,
@@ -123,6 +139,9 @@ function parseBody(body: unknown): DestInput | null {
     visitedTo: str(b.visitedTo),
     notes: str(b.notes),
     coverKey: str(b.coverKey),
+    pinColor,
+    pinIcon,
+    pinSize,
   }
 }
 
@@ -144,8 +163,9 @@ export async function createDestination(request: Request, env: Env): Promise<Res
   const now = Math.floor(Date.now() / 1000)
   await env.DB.prepare(
     `INSERT INTO destinations
-       (id, name, lat, lng, cover_key, visited_from, visited_to, notes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, name, lat, lng, cover_key, visited_from, visited_to, notes, created_at,
+        pin_color, pin_icon, pin_size)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -157,6 +177,9 @@ export async function createDestination(request: Request, env: Env): Promise<Res
       input.visitedTo,
       input.notes,
       now,
+      input.pinColor,
+      input.pinIcon,
+      input.pinSize,
     )
     .run()
 
@@ -170,6 +193,9 @@ export async function createDestination(request: Request, env: Env): Promise<Res
     visitedTo: input.visitedTo,
     notes: input.notes,
     createdAt: now,
+    pinColor: input.pinColor,
+    pinIcon: input.pinIcon,
+    pinSize: input.pinSize,
   }
   return json(created, { status: 201 })
 }
@@ -195,7 +221,8 @@ export async function updateDestination(request: Request, env: Env, id: string):
   await env.DB.prepare(
     `UPDATE destinations
         SET name = ?, lat = ?, lng = ?, cover_key = ?,
-            visited_from = ?, visited_to = ?, notes = ?
+            visited_from = ?, visited_to = ?, notes = ?,
+            pin_color = ?, pin_icon = ?, pin_size = ?
       WHERE id = ?`,
   )
     .bind(
@@ -206,6 +233,9 @@ export async function updateDestination(request: Request, env: Env, id: string):
       input.visitedFrom,
       input.visitedTo,
       input.notes,
+      input.pinColor,
+      input.pinIcon,
+      input.pinSize,
       id,
     )
     .run()
@@ -220,6 +250,9 @@ export async function updateDestination(request: Request, env: Env, id: string):
     visitedTo: input.visitedTo,
     notes: input.notes,
     createdAt: existing.created_at,
+    pinColor: input.pinColor,
+    pinIcon: input.pinIcon,
+    pinSize: input.pinSize,
   }
   return json(updated)
 }
