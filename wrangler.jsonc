@@ -19,7 +19,7 @@
     {
       "binding": "DB",
       "database_name": "pokeglobe",
-      "database_id": "REPLACE_WITH_ID_FROM_wrangler_d1_create"
+      "database_id": "4999df3d-abe2-44b6-8a75-8279a2696f10"
     }
   ],
   "observability": {
