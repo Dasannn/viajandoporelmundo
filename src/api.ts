@@ -61,6 +61,26 @@ export async function uploadPhotos(id: string, files: File[]): Promise<Destinati
   return res.json() as Promise<DestinationDetail>
 }
 
+/** Result of importing photos from URLs (POST .../photos/import). */
+export interface ImportResult {
+  detail: DestinationDetail
+  imported: number
+  failed: { url: string; error: string }[]
+}
+
+/**
+ * POST /api/destinations/:id/photos/import — import images from a list of URLs
+ * (admin). The Worker fetches each URL server-side (no browser CORS) and stores
+ * it in R2. Used by drag-and-drop of images coming from other browser tabs.
+ */
+export function importPhotos(id: string, urls: string[]): Promise<ImportResult> {
+  return sendJson<ImportResult>(
+    `/api/destinations/${encodeURIComponent(id)}/photos/import`,
+    'POST',
+    { urls },
+  )
+}
+
 /** DELETE /api/destinations/:id/photos/:photoId — returns the updated detail. */
 export function deletePhoto(id: string, photoId: string): Promise<DestinationDetail> {
   return sendJson<DestinationDetail>(

@@ -18,7 +18,7 @@ import {
   listDestinations,
   updateDestination,
 } from './destinations'
-import { deletePhoto, servePhoto, uploadPhotos } from './photos'
+import { deletePhoto, importPhotos, servePhoto, uploadPhotos } from './photos'
 import type { Env } from './lib/types'
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
@@ -49,6 +49,11 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
   const photosColl = pathname.match(/^\/api\/destinations\/([^/]+)\/photos$/)
   if (photosColl && method === 'POST') {
     return uploadPhotos(request, env, decodeURIComponent(photosColl[1]))
+  }
+  // Import images from a list of URLs (admin) — drag-and-drop from other tabs.
+  const photoImport = pathname.match(/^\/api\/destinations\/([^/]+)\/photos\/import$/)
+  if (photoImport && method === 'POST') {
+    return importPhotos(request, env, decodeURIComponent(photoImport[1]))
   }
   const photoItem = pathname.match(/^\/api\/destinations\/([^/]+)\/photos\/([^/]+)$/)
   if (photoItem && method === 'DELETE') {

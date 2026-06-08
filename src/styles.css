@@ -1393,6 +1393,32 @@ html, body {
   margin-top: 2px;
 }
 
+/* Drag-and-drop zone for photos (files or images dragged from other tabs) */
+.editor-dropzone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.editor-dropzone.drag-over {
+  border-color: rgba(78, 201, 176, 0.7);
+  background: rgba(78, 201, 176, 0.08);
+}
+
+.dropzone-hint {
+  text-align: center;
+  font-style: italic;
+}
+
+.dropzone-notice {
+  color: #4ec9b0 !important;
+  font-style: normal;
+}
+
 /* Music field inside the editor (YouTube link + start offset) */
 .editor-music {
   border-top: 1px solid rgba(255, 255, 255, 0.08);

@@ -6,6 +6,7 @@ import {
   deletePhoto,
   deleteDestination,
   fetchDestination,
+  importPhotos,
   photoUrl,
   updateDestination,
   uploadPhotos,
@@ -35,6 +36,32 @@ function imgFallback(e: React.SyntheticEvent<HTMLImageElement>) {
   const el = e.currentTarget
   if (el.src.endsWith('placeholder.png')) return
   el.src = PLACEHOLDER_IMG
+}
+
+// Pull candidate image URLs out of a drop coming from another browser tab.
+// Browsers expose the dragged image as HTML (<img src>), a uri-list, and/or
+// plain text; we collect http(s) and data:image URLs (the server fetches them).
+function extractDropUrls(dt: DataTransfer): string[] {
+  const urls = new Set<string>()
+  const add = (s: string | null | undefined) => {
+    const t = (s ?? '').trim()
+    if (/^https?:/i.test(t) || /^data:image\//i.test(t)) urls.add(t)
+  }
+  const html = dt.getData('text/html')
+  if (html) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html')
+      doc.querySelectorAll('img').forEach((img) => add(img.getAttribute('src')))
+    } catch {
+      /* ignore unparseable html */
+    }
+  }
+  const uriList = dt.getData('text/uri-list')
+  if (uriList) {
+    for (const line of uriList.split(/\r?\n/)) if (!line.startsWith('#')) add(line)
+  }
+  add(dt.getData('text/plain'))
+  return Array.from(urls)
 }
 
 // Extract an 11-char YouTube id from a pasted URL or bare id (mirror of the
@@ -84,7 +111,9 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Load existing photos when editing an existing pin.
@@ -147,6 +176,7 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
     if (fileRef.current) fileRef.current.value = '' // allow re-selecting the same file
     if (!id || files.length === 0) return
     setError('')
+    setNotice('')
     setUploading(true)
     try {
       const updated = await uploadPhotos(id, files)
@@ -158,6 +188,57 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
     } finally {
       setUploading(false)
     }
+  }
+
+  // Drag-and-drop: accept image files from the OS, or images dragged from
+  // another browser tab (sent as URLs, fetched + stored server-side).
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (!id) return
+    const dt = e.dataTransfer
+    const files = dt.files ? Array.from(dt.files).filter((f) => f.type.startsWith('image/')) : []
+    setError('')
+    setNotice('')
+    setUploading(true)
+    try {
+      if (files.length > 0) {
+        const updated = await uploadPhotos(id, files)
+        setDetail(updated)
+        setCoverKey(updated.coverKey)
+        onChange()
+      } else {
+        const urls = extractDropUrls(dt)
+        if (urls.length === 0) {
+          setError('No encontré ninguna imagen en lo que soltaste. Prueba arrastrando la imagen directamente.')
+          return
+        }
+        const res = await importPhotos(id, urls)
+        setDetail(res.detail)
+        setCoverKey(res.detail.coverKey)
+        onChange()
+        if (res.imported === 0) {
+          setError('No se pudo importar ninguna imagen (puede estar protegida o requerir inicio de sesión).')
+        } else if (res.failed.length > 0) {
+          setNotice(`Importadas ${res.imported}; ${res.failed.length} no se pudieron traer.`)
+        } else {
+          setNotice(`Importadas ${res.imported} foto(s).`)
+        }
+      }
+    } catch {
+      setError('No se pudieron añadir las fotos.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (!dragOver) setDragOver(true)
+  }
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
   }
 
   const removePhoto = async (photoId: string) => {
@@ -395,7 +476,12 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
             {!id ? (
               <p className="editor-hint">Guarda el destino para poder añadir fotos.</p>
             ) : (
-              <>
+              <div
+                className={`editor-dropzone${dragOver ? ' drag-over' : ''}`}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+              >
                 <input
                   ref={fileRef}
                   className="editor-file"
@@ -405,7 +491,11 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
                   onChange={onPickFiles}
                   disabled={uploading}
                 />
-                {uploading && <p className="editor-hint">Subiendo fotos…</p>}
+                <p className="editor-hint dropzone-hint">
+                  …o arrastra imágenes aquí — desde tu equipo o desde otra pestaña del navegador.
+                </p>
+                {uploading && <p className="editor-hint">Añadiendo fotos…</p>}
+                {notice && <p className="editor-hint dropzone-notice">{notice}</p>}
 
                 {photos.length > 0 && (
                   <div className="modal-grid editor-grid">
@@ -435,7 +525,7 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
                     })}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 
