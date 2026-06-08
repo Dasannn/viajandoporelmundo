@@ -27,6 +27,8 @@ interface DestRow {
   pin_color: string | null
   pin_icon: string | null
   pin_size: string | null
+  music_id: string | null
+  music_start: number | null
 }
 
 interface PhotoRow {
@@ -52,6 +54,8 @@ function toDestination(r: DestRow): Destination {
     pinColor: r.pin_color ?? null,
     pinIcon: r.pin_icon ?? null,
     pinSize: r.pin_size ?? null,
+    musicId: r.music_id ?? null,
+    musicStart: r.music_start ?? null,
   }
 }
 
@@ -111,6 +115,18 @@ interface DestInput {
   pinColor: string | null
   pinIcon: string | null
   pinSize: string | null
+  musicId: string | null
+  musicStart: number | null
+}
+
+// Extract an 11-char YouTube video id from a pasted URL or a bare id.
+// Accepts watch?v=, youtu.be/, /embed/, /shorts/, /live/ forms, or a raw id.
+// Returns null when nothing valid is found.
+function parseYouTubeId(raw: string): string | null {
+  const s = raw.trim()
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s
+  const m = s.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/)
+  return m ? m[1] : null
 }
 
 // Validate the shared create/update body. Returns null when invalid.
@@ -131,6 +147,13 @@ function parseBody(body: unknown): DestInput | null {
   const pinIcon = rawIcon && rawIcon.length <= 16 ? rawIcon : null
   const rawSize = str(b.pinSize)
   const pinSize = rawSize === 's' || rawSize === 'm' || rawSize === 'l' ? rawSize : null
+  // Music (optional): a YouTube id parsed from a URL or bare id, plus an
+  // optional non-negative integer start offset (seconds).
+  const rawMusic = str(b.musicId)
+  const musicId = rawMusic ? parseYouTubeId(rawMusic) : null
+  const startNum = Number(b.musicStart)
+  const musicStart =
+    musicId && Number.isFinite(startNum) && startNum > 0 ? Math.floor(startNum) : null
   return {
     name,
     lat,
@@ -142,6 +165,8 @@ function parseBody(body: unknown): DestInput | null {
     pinColor,
     pinIcon,
     pinSize,
+    musicId,
+    musicStart,
   }
 }
 
@@ -164,8 +189,8 @@ export async function createDestination(request: Request, env: Env): Promise<Res
   await env.DB.prepare(
     `INSERT INTO destinations
        (id, name, lat, lng, cover_key, visited_from, visited_to, notes, created_at,
-        pin_color, pin_icon, pin_size)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        pin_color, pin_icon, pin_size, music_id, music_start)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -180,6 +205,8 @@ export async function createDestination(request: Request, env: Env): Promise<Res
       input.pinColor,
       input.pinIcon,
       input.pinSize,
+      input.musicId,
+      input.musicStart,
     )
     .run()
 
@@ -196,6 +223,8 @@ export async function createDestination(request: Request, env: Env): Promise<Res
     pinColor: input.pinColor,
     pinIcon: input.pinIcon,
     pinSize: input.pinSize,
+    musicId: input.musicId,
+    musicStart: input.musicStart,
   }
   return json(created, { status: 201 })
 }
@@ -222,7 +251,8 @@ export async function updateDestination(request: Request, env: Env, id: string):
     `UPDATE destinations
         SET name = ?, lat = ?, lng = ?, cover_key = ?,
             visited_from = ?, visited_to = ?, notes = ?,
-            pin_color = ?, pin_icon = ?, pin_size = ?
+            pin_color = ?, pin_icon = ?, pin_size = ?,
+            music_id = ?, music_start = ?
       WHERE id = ?`,
   )
     .bind(
@@ -236,6 +266,8 @@ export async function updateDestination(request: Request, env: Env, id: string):
       input.pinColor,
       input.pinIcon,
       input.pinSize,
+      input.musicId,
+      input.musicStart,
       id,
     )
     .run()
@@ -253,6 +285,8 @@ export async function updateDestination(request: Request, env: Env, id: string):
     pinColor: input.pinColor,
     pinIcon: input.pinIcon,
     pinSize: input.pinSize,
+    musicId: input.musicId,
+    musicStart: input.musicStart,
   }
   return json(updated)
 }

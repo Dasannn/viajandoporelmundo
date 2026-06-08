@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS destinations (
   created_at    INTEGER NOT NULL,       -- unix seconds
   pin_color     TEXT,                   -- pin hex color (#rrggbb), null = default
   pin_icon      TEXT,                   -- shape keyword (circle/star/…) or an emoji
-  pin_size      TEXT                    -- 's' | 'm' | 'l', null = default 'm'
+  pin_size      TEXT,                   -- 's' | 'm' | 'l', null = default 'm'
+  music_id      TEXT,                   -- 11-char YouTube video id, null = no music
+  music_start   INTEGER                 -- start offset in seconds, null = from the beginning
 );
 
 -- Many photos per destination (the trip gallery).

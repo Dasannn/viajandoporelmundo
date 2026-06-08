@@ -18,6 +18,10 @@ export interface Destination {
   pinIcon: string | null
   /** Pin size: 's' | 'm' | 'l'; null = default 'm'. */
   pinSize: string | null
+  /** YouTube video id (11 chars) played when the pin opens; null = no music. */
+  musicId: string | null
+  /** Start offset in seconds for the music, or null to start at the beginning. */
+  musicStart: number | null
 }
 
 export interface Photo {

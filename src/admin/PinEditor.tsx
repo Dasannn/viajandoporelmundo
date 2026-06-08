@@ -37,6 +37,15 @@ function imgFallback(e: React.SyntheticEvent<HTMLImageElement>) {
   el.src = PLACEHOLDER_IMG
 }
 
+// Extract an 11-char YouTube id from a pasted URL or bare id (mirror of the
+// server's parser in worker/destinations.ts), for the live thumbnail preview.
+function ytId(raw: string): string | null {
+  const s = raw.trim()
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s
+  const m = s.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/)
+  return m ? m[1] : null
+}
+
 /** Small live canvas preview of a pin icon, used by the shape buttons + header. */
 function PinCanvas({ icon, color, size }: { icon: string; color: string; size: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -65,6 +74,13 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
   const [pinColor, setPinColor] = useState(draft.pinColor ?? DEFAULT_PIN_COLOR)
   const [pinIcon, setPinIcon] = useState<string>(draft.pinIcon ?? 'circle')
   const [pinSize, setPinSize] = useState<string>(draft.pinSize ?? 'm')
+
+  // Music (YouTube): raw URL/id text + optional start offset (seconds).
+  const [music, setMusic] = useState(draft.musicId ?? '')
+  const [musicStart, setMusicStart] = useState(
+    draft.musicStart != null ? String(draft.musicStart) : '',
+  )
+  const musicVideoId = ytId(music)
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -99,6 +115,8 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
     pinColor,
     pinIcon,
     pinSize,
+    musicId: music.trim() || null,
+    musicStart: musicStart.trim() ? Math.max(0, Math.floor(Number(musicStart) || 0)) : null,
   })
 
   const saveMeta = async () => {
@@ -311,6 +329,56 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
               placeholder="…o escribe cualquier emoji 🌟"
               onChange={(e) => setPinIcon(e.target.value || 'circle')}
             />
+          </div>
+
+          {/* Music: a YouTube video that plays while this pin is open. */}
+          <div className="editor-music">
+            <span className="modal-section-label">Música (YouTube)</span>
+            <label className="editor-label">
+              Enlace o ID del vídeo
+              <input
+                className="pokemon-input"
+                type="text"
+                value={music}
+                placeholder="https://youtu.be/… o ID del vídeo"
+                onChange={(e) => setMusic(e.target.value)}
+              />
+            </label>
+            {music.trim() && !musicVideoId && (
+              <p className="editor-hint">No reconozco un vídeo de YouTube en ese enlace.</p>
+            )}
+            {musicVideoId && (
+              <div className="music-config">
+                <img
+                  className="music-thumb"
+                  src={`https://img.youtube.com/vi/${musicVideoId}/default.jpg`}
+                  alt="Miniatura del vídeo"
+                />
+                <div className="music-config-right">
+                  <label className="editor-inline-label">
+                    Empezar en (seg)
+                    <input
+                      className="pokemon-input music-start-input"
+                      type="number"
+                      min={0}
+                      value={musicStart}
+                      placeholder="0"
+                      onChange={(e) => setMusicStart(e.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="music-clear"
+                    onClick={() => {
+                      setMusic('')
+                      setMusicStart('')
+                    }}
+                  >
+                    Quitar música
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <button className="auth-btn editor-save" onClick={saveMeta} disabled={saving}>

@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { Destination, DestinationDetail } from './types'
 import { fetchDestination, fetchDestinations } from './api'
 import DestinationModal from './components/DestinationModal'
+import MusicPlayer from './components/MusicPlayer'
 import PinEditor, { type PinDraft } from './admin/PinEditor'
 import { useAuth } from './auth/AuthGate'
 import TimelineFilter, { type YearFilter } from './components/TimelineFilter'
@@ -448,6 +449,8 @@ function GlobeExplorer() {
           pinColor: s.pinColor,
           pinIcon: s.pinIcon,
           pinSize: s.pinSize,
+          musicId: s.musicId,
+          musicStart: s.musicStart,
         })
       }
       return null
@@ -505,6 +508,8 @@ function GlobeExplorer() {
             pinColor: DEFAULT_PIN_COLOR,
             pinIcon: 'circle',
             pinSize: 'm',
+            musicId: null,
+            musicStart: null,
           })
           setPlacing(false)
         }
@@ -704,6 +709,9 @@ function GlobeExplorer() {
           {hover.name}
         </div>
       )}
+
+      {/* Per-destination music — plays while a pin with music is open. */}
+      <MusicPlayer destination={selected} />
 
       {/* Destination gallery modal */}
       <DestinationModal
