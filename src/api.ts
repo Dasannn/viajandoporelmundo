@@ -61,11 +61,12 @@ export async function uploadPhotos(id: string, files: File[]): Promise<Destinati
   return res.json() as Promise<DestinationDetail>
 }
 
-/** Result of importing photos from URLs (POST .../photos/import). */
+/** Result of an image import (from URLs or from Google Drive). */
 export interface ImportResult {
   detail: DestinationDetail
   imported: number
-  failed: { url: string; error: string }[]
+  /** Items that could not be imported (URL imports carry `url`, Drive `id`). */
+  failed: { error: string; url?: string; id?: string }[]
 }
 
 /**
@@ -78,6 +79,23 @@ export function importPhotos(id: string, urls: string[]): Promise<ImportResult> 
     `/api/destinations/${encodeURIComponent(id)}/photos/import`,
     'POST',
     { urls },
+  )
+}
+
+/**
+ * POST /api/destinations/:id/photos/import-drive — import images picked in the
+ * Google Drive Picker (admin). Sends the chosen file ids + a short-lived OAuth
+ * access token; the Worker downloads each file's bytes and stores them in R2.
+ */
+export function importDrivePhotos(
+  id: string,
+  fileIds: string[],
+  accessToken: string,
+): Promise<ImportResult> {
+  return sendJson<ImportResult>(
+    `/api/destinations/${encodeURIComponent(id)}/photos/import-drive`,
+    'POST',
+    { fileIds, accessToken },
   )
 }
 

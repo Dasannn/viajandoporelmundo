@@ -6,6 +6,7 @@ import {
   deletePhoto,
   deleteDestination,
   fetchDestination,
+  importDrivePhotos,
   importPhotos,
   photoUrl,
   updateDestination,
@@ -19,6 +20,7 @@ import {
   drawPin,
   isShape,
 } from '../lib/pins'
+import { driveConfigured, pickFromDrive } from '../lib/googleDrive'
 
 /** A pin being created (no id yet) or edited (with id). */
 export interface PinDraft extends DestinationInput {
@@ -239,6 +241,34 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
   const onDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
+  }
+
+  // Import images chosen from Google Drive (admin). Opens the Picker, then
+  // hands the chosen file ids + token to the Worker (which downloads to R2).
+  const onPickDrive = async () => {
+    if (!id) return
+    setError('')
+    setNotice('')
+    try {
+      const pick = await pickFromDrive()
+      if (!pick) return // cancelled / nothing chosen
+      setUploading(true)
+      const res = await importDrivePhotos(id, pick.fileIds, pick.accessToken)
+      setDetail(res.detail)
+      setCoverKey(res.detail.coverKey)
+      onChange()
+      if (res.imported === 0) {
+        setError('No se pudo importar ninguna foto de Google Drive.')
+      } else if (res.failed.length > 0) {
+        setNotice(`Importadas ${res.imported} de Drive; ${res.failed.length} no se pudieron traer.`)
+      } else {
+        setNotice(`Importadas ${res.imported} foto(s) de Google Drive.`)
+      }
+    } catch {
+      setError('No se pudo abrir Google Drive. Permite las ventanas emergentes e inténtalo de nuevo.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const removePhoto = async (photoId: string) => {
@@ -482,15 +512,28 @@ export default function PinEditor({ draft, onChange, onClose }: Props) {
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
               >
-                <input
-                  ref={fileRef}
-                  className="editor-file"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
-                  multiple
-                  onChange={onPickFiles}
-                  disabled={uploading}
-                />
+                <div className="photo-sources">
+                  <input
+                    ref={fileRef}
+                    className="editor-file"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                    multiple
+                    onChange={onPickFiles}
+                    disabled={uploading}
+                  />
+                  {driveConfigured() && (
+                    <button
+                      type="button"
+                      className="drive-btn"
+                      onClick={onPickDrive}
+                      disabled={uploading}
+                    >
+                      <span className="drive-icon" aria-hidden="true">▲</span>
+                      Importar de Google Drive
+                    </button>
+                  )}
+                </div>
                 <p className="editor-hint dropzone-hint">
                   …o arrastra imágenes aquí — desde tu equipo o desde otra pestaña del navegador.
                 </p>

@@ -1419,6 +1419,44 @@ html, body {
   font-style: normal;
 }
 
+.photo-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.drive-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(70, 214, 230, 0.1);
+  border: 1px solid rgba(70, 214, 230, 0.4);
+  border-radius: 8px;
+  color: #46d6e6;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.drive-btn:hover:not(:disabled) {
+  background: rgba(70, 214, 230, 0.18);
+  border-color: rgba(70, 214, 230, 0.65);
+}
+
+.drive-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.drive-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
 /* Music field inside the editor (YouTube link + start offset) */
 .editor-music {
   border-top: 1px solid rgba(255, 255, 255, 0.08);

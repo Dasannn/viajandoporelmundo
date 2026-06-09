@@ -286,6 +286,55 @@ export async function importPhotos(request: Request, env: Env, destId: string): 
   return json({ detail, imported: items.length, failed })
 }
 
+// POST /api/destinations/:id/photos/import-drive — import images chosen in the
+// Google Drive Picker (admin). The browser sends the picked `fileIds` plus a
+// short-lived OAuth `accessToken` (scope drive.file). We download each file's
+// bytes server-side from the Drive API with that bearer token and store them in
+// R2 like any other photo. The token is used transiently and never persisted.
+export async function importDrivePhotos(
+  request: Request,
+  env: Env,
+  destId: string,
+): Promise<Response> {
+  const auth = await authorize(request, env, 'admin')
+  if (auth instanceof Response) return auth
+  if (!env.DB) return noDb()
+  if (!env.BUCKET) return noBucket()
+
+  const dest = await env.DB.prepare('SELECT id FROM destinations WHERE id = ?')
+    .bind(destId)
+    .first<{ id: string }>()
+  if (!dest) return notFound()
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return badRequest()
+  }
+  const b = (body ?? {}) as { fileIds?: unknown; accessToken?: unknown }
+  const accessToken = typeof b.accessToken === 'string' ? b.accessToken.trim() : ''
+  const fileIds = Array.isArray(b.fileIds)
+    ? b.fileIds.filter((x): x is string => typeof x === 'string' && x.length > 0)
+    : []
+  if (!accessToken) return badRequest('missing_token')
+  if (fileIds.length === 0) return badRequest('no_files')
+  if (fileIds.length > 50) return badRequest('too_many_files')
+
+  const items: StoredImage[] = []
+  const failed: { id: string; error: string }[] = []
+  for (const fid of fileIds) {
+    const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fid)}?alt=media`
+    const r = await fetchImageFromUrl(url, `Bearer ${accessToken}`)
+    if (r.ok) items.push(r.image)
+    else failed.push({ id: fid, error: r.error })
+  }
+
+  const detail = items.length ? await storeImages(env, destId, items) : await loadDetail(env, destId)
+  if (!detail) return notFound()
+  return json({ detail, imported: items.length, failed })
+}
+
 // DELETE /api/destinations/:id/photos/:photoId — remove one photo (admin).
 export async function deletePhoto(
   request: Request,

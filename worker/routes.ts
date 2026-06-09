@@ -18,7 +18,7 @@ import {
   listDestinations,
   updateDestination,
 } from './destinations'
-import { deletePhoto, importPhotos, servePhoto, uploadPhotos } from './photos'
+import { deletePhoto, importDrivePhotos, importPhotos, servePhoto, uploadPhotos } from './photos'
 import type { Env } from './lib/types'
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
@@ -54,6 +54,11 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
   const photoImport = pathname.match(/^\/api\/destinations\/([^/]+)\/photos\/import$/)
   if (photoImport && method === 'POST') {
     return importPhotos(request, env, decodeURIComponent(photoImport[1]))
+  }
+  // Import images picked in the Google Drive Picker (admin).
+  const driveImport = pathname.match(/^\/api\/destinations\/([^/]+)\/photos\/import-drive$/)
+  if (driveImport && method === 'POST') {
+    return importDrivePhotos(request, env, decodeURIComponent(driveImport[1]))
   }
   const photoItem = pathname.match(/^\/api\/destinations\/([^/]+)\/photos\/([^/]+)$/)
   if (photoItem && method === 'DELETE') {
